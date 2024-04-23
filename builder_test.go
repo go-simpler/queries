@@ -4,11 +4,11 @@ import (
 	"testing"
 
 	"go-simpler.org/queries"
-	"go-simpler.org/queries/assert"
-	. "go-simpler.org/queries/assert/EF"
+	"go-simpler.org/queries/internal/assert"
+	. "go-simpler.org/queries/internal/assert/EF"
 )
 
-//go:generate go run -tags=cp go-simpler.org/assert/cmd/cp@v0.9.0
+//go:generate go run -tags=cp go-simpler.org/assert/cmd/cp@v0.9.0 -dir=internal
 
 func TestBuilder(t *testing.T) {
 	var qb queries.Builder
