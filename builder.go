@@ -2,15 +2,14 @@ package queries
 
 import (
 	"fmt"
-	"slices"
 	"strings"
 )
 
 type Builder struct {
-	query        strings.Builder
-	Args         []any
-	counter      int
-	placeholders []rune
+	query       strings.Builder
+	Args        []any
+	counter     int
+	placeholder rune
 }
 
 func (b *Builder) Appendf(format string, args ...any) {
@@ -21,21 +20,47 @@ func (b *Builder) Appendf(format string, args ...any) {
 	fmt.Fprintf(&b.query, format, a...)
 }
 
-func (b *Builder) String() string {
-	slices.Sort(b.placeholders)
-	if len(slices.Compact(b.placeholders)) > 1 {
-		panic(fmt.Sprintf("queries.Builder: bad query: %s placeholders used", string(b.placeholders)))
-	}
+func (b *Builder) String() string { return b.string() }
 
-	s := b.query.String()
-	if strings.Contains(s, "%!") {
+func (b *Builder) DebugString() string {
+	query := b.string()
+	for i, arg := range b.Args {
+		var sarg string
+		switch arg := arg.(type) {
+		case string:
+			sarg = fmt.Sprintf("'%s'", arg)
+		case fmt.Stringer:
+			sarg = fmt.Sprintf("'%s'", arg.String())
+		default:
+			sarg = fmt.Sprintf("%v", arg)
+		}
+
+		switch b.placeholder {
+		case '?':
+			query = strings.Replace(query, "?", sarg, 1)
+		case '$':
+			query = strings.Replace(query, fmt.Sprintf("$%d", i+1), sarg, 1)
+		case '@':
+			query = strings.Replace(query, fmt.Sprintf("@p%d", i+1), sarg, 1)
+		default:
+			panic("unreachable")
+		}
+	}
+	return query
+}
+
+func (b *Builder) string() string {
+	query := b.query.String()
+	if strings.Contains(query, "%!") {
 		// fmt silently recovers panics and writes them to the output.
 		// we want panics to be loud, so we find and rethrow them.
 		// see also https://github.com/golang/go/issues/28150.
-		panic(fmt.Sprintf("queries.Builder: bad query: %s", s))
+		panic(fmt.Sprintf("queries: bad query: %s", query))
 	}
-
-	return s
+	if b.placeholder == -1 {
+		panic("queries: bad query: different placeholders used")
+	}
+	return query
 }
 
 type argument struct {
@@ -48,7 +73,12 @@ func (a argument) Format(s fmt.State, verb rune) {
 	switch verb {
 	case '?', '$', '@':
 		a.builder.Args = append(a.builder.Args, a.value)
-		a.builder.placeholders = append(a.builder.placeholders, verb)
+		if a.builder.placeholder == 0 {
+			a.builder.placeholder = verb
+		}
+		if a.builder.placeholder != verb {
+			a.builder.placeholder = -1
+		}
 	}
 
 	switch verb {
