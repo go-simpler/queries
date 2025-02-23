@@ -1,88 +1,75 @@
 package queries
 
 import (
-	"errors"
+	"database/sql"
 	"fmt"
 	"reflect"
 )
 
-// TODO: consider merging ScanOne() + ScanAll() -> Scan().
-
 type Rows interface {
-	Scan(...any) error
 	Columns() ([]string, error)
 	Next() bool
+	Scan(...any) error
 	Err() error
 }
 
-func ScanOne(dst any, rows Rows) error {
-	v := reflect.ValueOf(dst)
-	if !v.IsValid() || v.Kind() != reflect.Ptr || v.Elem().Kind() != reflect.Struct || v.IsNil() {
-		panic("queries: dst must be a non-nil struct pointer")
-	}
-
-	fields := parseStruct(v.Elem())
-
-	columns, err := rows.Columns()
-	if err != nil {
-		return fmt.Errorf("getting column names: %w", err)
-	}
-
-	target := make([]any, len(columns))
-	for i, column := range columns {
-		field, ok := fields[column]
-		if !ok {
-			panic(fmt.Sprintf("queries: no field for the %#q column", column))
-		}
-		target[i] = field
-	}
-
-	if !rows.Next() {
-		return errors.New("queries: no rows to scan")
-	}
-	if err := rows.Scan(target...); err != nil {
-		return fmt.Errorf("scanning rows: %w", err)
-	}
-
-	return rows.Err()
+func Scan[T any](dst *[]T, rows Rows) error {
+	return scan[T](reflect.ValueOf(dst).Elem(), rows)
 }
 
-func ScanAll(dst any, rows Rows) error {
-	v := reflect.ValueOf(dst)
-	if !v.IsValid() || v.Kind() != reflect.Ptr || v.Elem().Kind() != reflect.Slice || v.Elem().Type().Elem().Kind() != reflect.Struct {
-		panic("queries: dst must be a pointer to a slice of structs")
+func ScanRow[T any](dst *T, rows Rows) error {
+	return scan[T](reflect.ValueOf(dst).Elem(), rows)
+}
+
+func scan[T any](v reflect.Value, rows Rows) error {
+	typ := reflect.TypeFor[T]()
+	if typ.Kind() != reflect.Struct {
+		panic("queries: T must be a struct")
 	}
 
-	slice := v.Elem()
-	typ := slice.Type().Elem()
-	elem := reflect.New(typ).Elem()
-	fields := parseStruct(elem)
+	strct := reflect.New(typ).Elem()
+	fields := parseStruct(strct)
 
 	columns, err := rows.Columns()
 	if err != nil {
 		return fmt.Errorf("getting column names: %w", err)
 	}
 
-	target := make([]any, len(columns))
+	into := make([]any, len(columns))
 	for i, column := range columns {
 		field, ok := fields[column]
 		if !ok {
-			panic(fmt.Sprintf("queries: no field for the %#q column", column))
+			panic(fmt.Sprintf("queries: no field for column %q", column))
 		}
-		target[i] = field
+		into[i] = field
 	}
 
+	slice := reflect.New(reflect.SliceOf(typ)).Elem()
 	for rows.Next() {
-		if err := rows.Scan(target...); err != nil {
-			return fmt.Errorf("scanning rows: %w", err)
+		if err := rows.Scan(into...); err != nil {
+			return fmt.Errorf("scanning row: %w", err)
 		}
-		slice.Set(reflect.Append(slice, elem))
+		slice = reflect.Append(slice, strct)
+	}
+	if err := rows.Err(); err != nil {
+		return err
 	}
 
-	return rows.Err()
+	switch v.Kind() {
+	case reflect.Slice:
+		v.Set(slice)
+	case reflect.Struct:
+		if slice.Len() == 0 {
+			return sql.ErrNoRows
+		}
+		v.Set(slice.Index(0))
+	default:
+		panic("unreachable")
+	}
+
+	return nil
 }
 
-// TODO: support nested structs.
 func parseStruct(v reflect.Value) map[string]any {
 	fields := make(map[string]any, v.NumField())
 
@@ -92,16 +79,15 @@ func parseStruct(v reflect.Value) map[string]any {
 			continue
 		}
 
-		sf := v.Type().Field(i)
-		name, ok := sf.Tag.Lookup("sql")
+		tag, ok := v.Type().Field(i).Tag.Lookup("sql")
 		if !ok {
 			continue
 		}
-		if name == "" {
-			panic(fmt.Sprintf("queries: %s field has an empty `sql` tag", sf.Name))
+		if tag == "" {
+			panic(fmt.Sprintf("queries: field %s has an empty `sql` tag", v.Type().Field(i).Name))
 		}
 
-		fields[name] = field.Addr().Interface()
+		fields[tag] = field.Addr().Interface()
 	}
 
 	return fields
