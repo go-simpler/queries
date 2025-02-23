@@ -53,7 +53,7 @@ func run(ctx context.Context) error {
 		LastName  string    `sql:"last_name"`
 		CreatedAt time.Time `sql:"created_at"`
 	}
-	if err := queries.ScanAll(&users, rows); err != nil {
+	if err := queries.Scan(&users, rows); err != nil {
 		return err
 	}
 
