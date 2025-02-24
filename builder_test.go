@@ -1,7 +1,6 @@
 package queries_test
 
 import (
-	"context"
 	"testing"
 
 	"go-simpler.org/queries"
@@ -13,45 +12,40 @@ import (
 
 func TestBuilder(t *testing.T) {
 	var qb queries.Builder
-	qb.Appendf("select %s from tbl where 1=1", "*")
-	qb.Appendf(" and foo = %$", 1)
-	qb.Appendf(" and bar = %$", 2)
-	qb.Appendf(" and baz = %$", 3)
+	qb.Appendf("SELECT %s FROM tbl WHERE 1=1", "*")
+	qb.Appendf(" AND foo = %$", 42)
+	qb.Appendf(" AND bar = %$", "test")
+	qb.Appendf(" AND baz = %$", false)
 
-	assert.Equal[E](t, qb.String(), "select * from tbl where 1=1 and foo = $1 and bar = $2 and baz = $3")
-	assert.Equal[E](t, qb.Args, []any{1, 2, 3})
+	assert.Equal[E](t, qb.Query(), "SELECT * FROM tbl WHERE 1=1 AND foo = $1 AND bar = $2 AND baz = $3")
+	assert.Equal[E](t, qb.Args(), []any{42, "test", false})
 }
 
 func TestBuilder_placeholders(t *testing.T) {
 	tests := map[string]struct {
 		format string
 		query  string
-		debug  string
 	}{
 		"?": {
-			format: "select * from tbl where foo = %? and bar = %? and baz = %?",
-			query:  "select * from tbl where foo = ? and bar = ? and baz = ?",
-			debug:  "select * from tbl where foo = 42 and bar = 'test' and baz = 'context.Background'",
+			format: "SELECT * FROM tbl WHERE foo = %? AND bar = %? AND baz = %?",
+			query:  "SELECT * FROM tbl WHERE foo = ? AND bar = ? AND baz = ?",
 		},
 		"$": {
-			format: "select * from tbl where foo = %$ and bar = %$ and baz = %$",
-			query:  "select * from tbl where foo = $1 and bar = $2 and baz = $3",
-			debug:  "select * from tbl where foo = 42 and bar = 'test' and baz = 'context.Background'",
+			format: "SELECT * FROM tbl WHERE foo = %$ AND bar = %$ AND baz = %$",
+			query:  "SELECT * FROM tbl WHERE foo = $1 AND bar = $2 AND baz = $3",
 		},
 		"@": {
-			format: "select * from tbl where foo = %@ and bar = %@ and baz = %@",
-			query:  "select * from tbl where foo = @p1 and bar = @p2 and baz = @p3",
-			debug:  "select * from tbl where foo = 42 and bar = 'test' and baz = 'context.Background'",
+			format: "SELECT * FROM tbl WHERE foo = %@ AND bar = %@ AND baz = %@",
+			query:  "SELECT * FROM tbl WHERE foo = @p1 AND bar = @p2 AND baz = @p3",
 		},
 	}
 
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
 			var qb queries.Builder
-			qb.Appendf(tt.format, 42, "test", context.Background())
-			assert.Equal[E](t, qb.String(), tt.query)
-			assert.Equal[E](t, qb.Args, []any{42, "test", context.Background()})
-			assert.Equal[E](t, qb.DebugString(), tt.debug)
+			qb.Appendf(tt.format, 1, 2, 3)
+			assert.Equal[E](t, qb.Query(), tt.query)
+			assert.Equal[E](t, qb.Args(), []any{1, 2, 3})
 		})
 	}
 }
@@ -63,27 +57,27 @@ func TestBuilder_badQuery(t *testing.T) {
 	}{
 		"bad verb": {
 			appends: func(qb *queries.Builder) {
-				qb.Appendf("select %d from tbl", "foo")
+				qb.Appendf("SELECT %d FROM tbl", "foo")
 			},
-			panicMsg: "queries: bad query: select %!d(string=foo) from tbl",
+			panicMsg: "queries: bad query: SELECT %!d(string=foo) FROM tbl",
 		},
 		"too few arguments": {
 			appends: func(qb *queries.Builder) {
-				qb.Appendf("select %s from tbl")
+				qb.Appendf("SELECT %s FROM tbl")
 			},
-			panicMsg: "queries: bad query: select %!s(MISSING) from tbl",
+			panicMsg: "queries: bad query: SELECT %!s(MISSING) FROM tbl",
 		},
 		"too many arguments": {
 			appends: func(qb *queries.Builder) {
-				qb.Appendf("select %s from tbl", "foo", "bar")
+				qb.Appendf("SELECT %s FROM tbl", "foo", "bar")
 			},
-			panicMsg: "queries: bad query: select foo from tbl%!(EXTRA queries.argument=bar)",
+			panicMsg: "queries: bad query: SELECT foo FROM tbl%!(EXTRA queries.argument=bar)",
 		},
 		"different placeholders": {
 			appends: func(qb *queries.Builder) {
-				qb.Appendf("select * from tbl where foo = %? and bar = %$ and baz = %@", 1, 2, 3)
+				qb.Appendf("SELECT * FROM tbl WHERE foo = %? AND bar = %$ AND baz = %@", 1, 2, 3)
 			},
-			panicMsg: "queries: bad query: different placeholders used",
+			panicMsg: "queries: different placeholders used",
 		},
 	}
 
@@ -91,7 +85,7 @@ func TestBuilder_badQuery(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			var qb queries.Builder
 			tt.appends(&qb)
-			assert.Panics[E](t, func() { _ = qb.String() }, tt.panicMsg)
+			assert.Panics[E](t, func() { _ = qb.Query() }, tt.panicMsg)
 		})
 	}
 }

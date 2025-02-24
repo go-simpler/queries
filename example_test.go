@@ -42,7 +42,7 @@ func run(ctx context.Context) error {
 	}
 
 	// select first_name, last_name, created_at from users where created_at >= $1
-	rows, err := db.QueryContext(ctx, qb.String(), qb.Args...)
+	rows, err := db.QueryContext(ctx, qb.Query(), qb.Args()...)
 	if err != nil {
 		return err
 	}

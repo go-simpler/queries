@@ -7,7 +7,7 @@ import (
 
 type Builder struct {
 	query       strings.Builder
-	Args        []any
+	args        []any
 	counter     int
 	placeholder rune
 }
@@ -20,48 +20,21 @@ func (b *Builder) Appendf(format string, args ...any) {
 	fmt.Fprintf(&b.query, format, a...)
 }
 
-func (b *Builder) String() string { return b.string() }
-
-func (b *Builder) DebugString() string {
-	query := b.string()
-	for i, arg := range b.Args {
-		var sarg string
-		switch arg := arg.(type) {
-		case string:
-			sarg = fmt.Sprintf("'%s'", arg)
-		case fmt.Stringer:
-			sarg = fmt.Sprintf("'%s'", arg.String())
-		default:
-			sarg = fmt.Sprintf("%v", arg)
-		}
-
-		switch b.placeholder {
-		case '?':
-			query = strings.Replace(query, "?", sarg, 1)
-		case '$':
-			query = strings.Replace(query, fmt.Sprintf("$%d", i+1), sarg, 1)
-		case '@':
-			query = strings.Replace(query, fmt.Sprintf("@p%d", i+1), sarg, 1)
-		default:
-			panic("unreachable")
-		}
-	}
-	return query
-}
-
-func (b *Builder) string() string {
+func (b *Builder) Query() string {
 	query := b.query.String()
 	if strings.Contains(query, "%!") {
 		// fmt silently recovers panics and writes them to the output.
-		// we want panics to be loud, so we find and rethrow them.
-		// see also https://github.com/golang/go/issues/28150.
+		// We want panics to be loud, so we find and rethrow them.
+		// See also https://github.com/golang/go/issues/28150.
 		panic(fmt.Sprintf("queries: bad query: %s", query))
 	}
 	if b.placeholder == -1 {
-		panic("queries: bad query: different placeholders used")
+		panic("queries: different placeholders used")
 	}
 	return query
 }
+
+func (b *Builder) Args() []any { return b.args }
 
 type argument struct {
 	value   any
@@ -72,7 +45,7 @@ type argument struct {
 func (a argument) Format(s fmt.State, verb rune) {
 	switch verb {
 	case '?', '$', '@':
-		a.builder.Args = append(a.builder.Args, a.value)
+		a.builder.args = append(a.builder.args, a.value)
 		if a.builder.placeholder == 0 {
 			a.builder.placeholder = verb
 		}
