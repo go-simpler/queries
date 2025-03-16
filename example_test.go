@@ -35,28 +35,25 @@ func run(ctx context.Context) error {
 		columns = append(columns, "created_at")
 	}
 
+	// select first_name, last_name, created_at from users where created_at >= $1
 	var qb queries.Builder
 	qb.Appendf("select %s from users", strings.Join(columns, ", "))
 	if true {
 		qb.Appendf(" where created_at >= %$", time.Date(2024, time.January, 1, 0, 0, 0, 0, time.Local))
 	}
 
-	// select first_name, last_name, created_at from users where created_at >= $1
-	rows, err := db.QueryContext(ctx, qb.Query(), qb.Args()...)
-	if err != nil {
-		return err
-	}
-	defer rows.Close()
-
-	var users []struct {
+	type user struct {
 		FirstName string    `sql:"first_name"`
 		LastName  string    `sql:"last_name"`
 		CreatedAt time.Time `sql:"created_at"`
 	}
-	if err := queries.Scan(&users, rows); err != nil {
-		return err
+
+	for user, err := range queries.Query[user](ctx, db, qb.Query(), qb.Args()...) {
+		if err != nil {
+			return err
+		}
+		fmt.Println(user)
 	}
 
-	fmt.Println(users)
 	return nil
 }
