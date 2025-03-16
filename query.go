@@ -103,7 +103,7 @@ func scan[T any](rows rows) (T, error) {
 func parseStruct(v reflect.Value) map[string]any {
 	fields := make(map[string]any, v.NumField())
 
-	for i := 0; i < v.NumField(); i++ {
+	for i := range v.NumField() {
 		field := v.Field(i)
 		if !field.CanSet() {
 			continue

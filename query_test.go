@@ -60,7 +60,7 @@ type mockRows struct {
 func (r *mockRows) Columns() ([]string, error) { return r.columns, nil }
 
 func (r *mockRows) Scan(dst ...any) error {
-	for i := 0; i < len(dst); i++ {
+	for i := range dst {
 		v := reflect.ValueOf(r.values[i])
 		reflect.ValueOf(dst[i]).Elem().Set(v)
 	}
