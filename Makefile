@@ -8,7 +8,7 @@ deps:
 	@go mod tidy
 
 test:
-	@rm -r tests/coverdata tests/coverage.out && mkdir tests/coverdata
+	@rm -rf tests/coverdata tests/coverage.out && mkdir tests/coverdata
 	@go test -race -shuffle=on -cover . -args -test.gocoverdir=$$PWD/tests/coverdata
 	@$(CONTAINER_RUNNER) compose --file=$$PWD/tests/compose.yaml up --detach
 	@go test -v -race -coverpkg=go-simpler.org/queries ./tests -args -test.gocoverdir=$$PWD/tests/coverdata
