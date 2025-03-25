@@ -1,28 +1,22 @@
 .POSIX:
 .SUFFIXES:
 
-all: test lint
+gen:
+	@go generate ./...
+
+deps:
+	@go mod tidy
 
 test:
-	go test -race -shuffle=on -cover ./...
+	@rm -r tests/coverdata && mkdir tests/coverdata
+	@go test -race -shuffle=on -cover . -args -test.gocoverdir=$$PWD/tests/coverdata
+	@$(CONTAINER_RUNNER) compose --file=$$PWD/tests/compose.yaml up --detach
+	@go test -v -race -coverpkg=go-simpler.org/queries ./tests -args -test.gocoverdir=$$PWD/tests/coverdata
+	@$(CONTAINER_RUNNER) compose --file=$$PWD/tests/compose.yaml down
+	@go tool covdata textfmt -i=tests/coverdata -o=tests/coverage.out
 
-test/cover:
-	go test -race -shuffle=on -coverprofile=coverage.out ./...
-	go tool cover -html=coverage.out
+test/cover: test
+	@go tool cover -html=coverage.out
 
 lint:
-	golangci-lint run
-
-tidy:
-	go mod tidy
-
-generate:
-	go generate ./...
-
-# run `make pre-commit` once to install the hook.
-pre-commit: .git/hooks/pre-commit test lint tidy generate
-	git diff --exit-code
-
-.git/hooks/pre-commit:
-	echo "make pre-commit" > .git/hooks/pre-commit
-	chmod +x .git/hooks/pre-commit
+	@golangci-lint run
