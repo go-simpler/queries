@@ -41,7 +41,7 @@ func TestInterceptor(t *testing.T) {
 	assert.IsErr[E](t, err, errCalled)
 	assert.Equal[E](t, execIntercepted, true)
 
-	_, err = db.QueryContext(ctx, "")
+	_, err = db.QueryContext(ctx, "") //nolint:gocritic // sqlQuery: unused result is fine here.
 	assert.IsErr[E](t, err, errCalled)
 	assert.Equal[E](t, queryIntercepted, true)
 }
@@ -63,7 +63,7 @@ func TestInterceptor_passthrough(t *testing.T) {
 	_, err = db.ExecContext(ctx, "")
 	assert.IsErr[E](t, err, errCalled)
 
-	_, err = db.QueryContext(ctx, "")
+	_, err = db.QueryContext(ctx, "") //nolint:gocritic // sqlQuery: unused result is fine here.
 	assert.IsErr[E](t, err, errCalled)
 }
 
@@ -84,7 +84,7 @@ func TestInterceptor_unimplemented(t *testing.T) {
 	execFn := func() { _, _ = db.ExecContext(ctx, "") }
 	assert.Panics[E](t, execFn, "queries: driver does not implement driver.ExecerContext")
 
-	queryFn := func() { _, _ = db.QueryContext(ctx, "") }
+	queryFn := func() { _, _ = db.QueryContext(ctx, "") } //nolint:gocritic // sqlQuery: unused result is fine here.
 	assert.Panics[E](t, queryFn, "queries: driver does not implement driver.QueryerContext")
 }
 
