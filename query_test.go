@@ -1,6 +1,7 @@
 package queries
 
 import (
+	"errors"
 	"reflect"
 	"testing"
 
@@ -35,6 +36,35 @@ func Test_scan(t *testing.T) {
 		assert.Panics[E](t, fn, `queries: no field for column "bar"`)
 	})
 
+	t.Run("columns error", func(t *testing.T) {
+		someErr := errors.New("")
+
+		rows := mockRows{
+			columnsErr: someErr,
+		}
+
+		type row struct {
+			Foo int `sql:"foo"`
+		}
+		_, err := scan[row](&rows)
+		assert.IsErr[E](t, err, someErr)
+	})
+
+	t.Run("scan error", func(t *testing.T) {
+		someErr := errors.New("")
+
+		rows := mockRows{
+			columns: []string{"foo"},
+			scanErr: someErr,
+		}
+
+		type row struct {
+			Foo int `sql:"foo"`
+		}
+		_, err := scan[row](&rows)
+		assert.IsErr[E](t, err, someErr)
+	})
+
 	t.Run("ok", func(t *testing.T) {
 		rows := mockRows{
 			columns: []string{"foo", "bar"},
@@ -42,24 +72,36 @@ func Test_scan(t *testing.T) {
 		}
 
 		type row struct {
-			Foo int    `sql:"foo"`
-			Bar string `sql:"bar"`
+			Foo        int    `sql:"foo"`
+			Bar        string `sql:"bar"`
+			unexported bool
 		}
 		r, err := scan[row](&rows)
 		assert.NoErr[F](t, err)
 		assert.Equal[E](t, r.Foo, 1)
 		assert.Equal[E](t, r.Bar, "A")
+		assert.Equal[E](t, r.unexported, false)
 	})
 }
 
 type mockRows struct {
-	columns []string
-	values  []any
+	columns    []string
+	values     []any
+	columnsErr error
+	scanErr    error
 }
 
-func (r *mockRows) Columns() ([]string, error) { return r.columns, nil }
+func (r *mockRows) Columns() ([]string, error) {
+	if r.columnsErr != nil {
+		return nil, r.columnsErr
+	}
+	return r.columns, nil
+}
 
 func (r *mockRows) Scan(dst ...any) error {
+	if r.scanErr != nil {
+		return r.scanErr
+	}
 	for i := range dst {
 		v := reflect.ValueOf(r.values[i])
 		reflect.ValueOf(dst[i]).Elem().Set(v)
