@@ -9,9 +9,30 @@ on:
 
 jobs:
   test:
-    uses: go-simpler/.github/.github/workflows/test.yml@main
-    with:
-      packages: '.' # ignore `internal/assert`
+    strategy:
+      matrix:
+        go: [ oldstable, stable ]
+    runs-on: ubuntu-latest
+    steps:
+      # https://github.com/actions/setup-go
+      - name: Set up Go ${{ matrix.go }}
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ matrix.go }}
+
+      # https://github.com/actions/checkout
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Run tests
+        run: CONTAINER_RUNNER=docker make test
+
+      # https://github.com/codecov/codecov-action
+      - name: Upload coverage
+        uses: codecov/codecov-action@v5
+        with:
+          files: tests/coverage.out
+
   lint:
     uses: go-simpler/.github/.github/workflows/lint.yml@main
   vuln:

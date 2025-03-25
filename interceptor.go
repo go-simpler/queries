@@ -16,9 +16,6 @@ type Interceptor struct {
 	QueryContext func(ctx context.Context, query string, args []driver.NamedValue, queryer driver.QueryerContext) (driver.Rows, error)
 }
 
-// DriverName returns the driver name to pass to [sql.Register] and [sql.Open].
-func (i Interceptor) DriverName() string { return "interceptor" }
-
 // Open implements [driver.Driver].
 func (i Interceptor) Open(name string) (driver.Conn, error) {
 	conn, err := i.Driver.Open(name)

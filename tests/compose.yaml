@@ -1,0 +1,20 @@
+# https://github.com/compose-spec/compose-spec/blob/main/spec.md
+
+services:
+  postgres:
+    # https://hub.docker.com/_/postgres
+    image: postgres
+    ports:
+      - 5432:5432
+    environment:
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=postgres
+
+  mysql:
+    # https://hub.docker.com/_/mysql
+    image: mysql
+    ports:
+      - 3306:3306
+    environment:
+      - MYSQL_ROOT_PASSWORD=root
+      - MYSQL_DATABASE=mysql
