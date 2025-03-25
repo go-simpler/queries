@@ -1,11 +1,17 @@
 .POSIX:
 .SUFFIXES:
 
+fmt:
+	@golangci-lint fmt
+
 gen:
 	@go generate ./...
 
 deps:
 	@go mod tidy
+
+lint:
+	@golangci-lint run
 
 test:
 	@rm -rf tests/coverdata tests/coverage.out && mkdir tests/coverdata
@@ -17,6 +23,3 @@ test:
 
 test/cover: test
 	@go tool cover -html=tests/coverage.out
-
-lint:
-	@golangci-lint run
