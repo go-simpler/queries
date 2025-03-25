@@ -18,11 +18,7 @@ type Interceptor struct {
 
 // Open implements [driver.Driver].
 func (i Interceptor) Open(name string) (driver.Conn, error) {
-	conn, err := i.Driver.Open(name)
-	if err != nil {
-		return nil, err
-	}
-	return wrappedConn{conn, i}, nil
+	panic("unreachable") // driver.DriverContext always takes precedence over driver.Driver.
 }
 
 // OpenConnector implements [driver.DriverContext].
