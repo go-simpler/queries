@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"iter"
 	"reflect"
+	"sync"
 )
 
 type queryer interface {
@@ -82,15 +83,15 @@ func scan[T any](rows rows) (T, error) {
 		return zero[T](), fmt.Errorf("getting column names: %w", err)
 	}
 
-	fields := parseStruct(v)
+	indexes := parseStruct(v.Type())
 	args := make([]any, len(columns))
 
 	for i, column := range columns {
-		field, ok := fields[column]
+		idx, ok := indexes[column]
 		if !ok {
 			panic(fmt.Sprintf("queries: no field for column %q", column))
 		}
-		args[i] = field
+		args[i] = v.Field(idx).Addr().Interface()
 	}
 	if err := rows.Scan(args...); err != nil {
 		return zero[T](), err
@@ -99,26 +100,34 @@ func scan[T any](rows rows) (T, error) {
 	return t, nil
 }
 
-// TODO: add sync.Map cache.
-func parseStruct(v reflect.Value) map[string]any {
-	fields := make(map[string]any, v.NumField())
+var cache sync.Map // map[reflect.Type]map[string]int
 
-	for i := range v.NumField() {
-		field := v.Field(i)
-		if !field.CanSet() {
+// parseStruct parses the given struct type and returns a map of column names to field indexes.
+// The result is cached, so each struct type is parsed only once.
+func parseStruct(t reflect.Type) map[string]int {
+	if m, ok := cache.Load(t); ok {
+		return m.(map[string]int)
+	}
+
+	indexes := make(map[string]int, t.NumField())
+
+	for i := range t.NumField() {
+		field := t.Field(i)
+		if !field.IsExported() {
 			continue
 		}
 
-		tag, ok := v.Type().Field(i).Tag.Lookup("sql")
+		column, ok := field.Tag.Lookup("sql")
 		if !ok {
 			continue
 		}
-		if tag == "" {
-			panic(fmt.Sprintf("queries: field %s has an empty `sql` tag", v.Type().Field(i).Name))
+		if column == "" {
+			panic(fmt.Sprintf("queries: field %s has an empty `sql` tag", field.Name))
 		}
 
-		fields[tag] = field.Addr().Interface()
+		indexes[column] = i
 	}
 
-	return fields
+	cache.Store(t, indexes)
+	return indexes
 }
