@@ -102,6 +102,8 @@ func scan[T any](rows rows) (T, error) {
 
 var cache sync.Map // map[reflect.Type]map[string]int
 
+// parseStruct parses the given struct type and returns a map of column names to field indexes.
+// The result is cached, so each struct type is parsed only once.
 func parseStruct(t reflect.Type) map[string]int {
 	if m, ok := cache.Load(t); ok {
 		return m.(map[string]int)
