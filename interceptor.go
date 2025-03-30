@@ -10,18 +10,37 @@ var (
 	_ driver.DriverContext = Interceptor{}
 )
 
+// Interceptor is a [driver.Driver] wrapper that allows to register callbacks for database queries.
+// It must first be registered with [sql.Register] with the same name that is then passed to [sql.Open]:
+//
+//	interceptor := queries.Interceptor{...}
+//	sql.Register("interceptor", interceptor)
+//	db, err := sql.Open("interceptor", "dsn")
 type Interceptor struct {
-	Driver       driver.Driver
-	ExecContext  func(ctx context.Context, query string, args []driver.NamedValue, execer driver.ExecerContext) (driver.Result, error)
+	// Driver is a database driver.
+	// It must implement [driver.ExecerContext] and [driver.QueryerContext] (most drivers do).
+	// Required.
+	Driver driver.Driver
+
+	// ExecContext is a callback for both [sql.DB.ExecContext] and [sql.Tx.ExecContext].
+	// The implementation must call execer.ExecerContext(ctx, query, args) and return the result.
+	// Optional.
+	ExecContext func(ctx context.Context, query string, args []driver.NamedValue, execer driver.ExecerContext) (driver.Result, error)
+
+	// QueryContext is a callback for both [sql.DB.QueryContext] and [sql.Tx.QueryContext].
+	// The implementation must call queryer.QueryContext(ctx, query, args) and return the result.
+	// Optional.
 	QueryContext func(ctx context.Context, query string, args []driver.NamedValue, queryer driver.QueryerContext) (driver.Rows, error)
 }
 
 // Open implements [driver.Driver].
+// Do not use it directly.
 func (i Interceptor) Open(name string) (driver.Conn, error) {
 	panic("unreachable") // driver.DriverContext always takes precedence over driver.Driver.
 }
 
 // OpenConnector implements [driver.DriverContext].
+// Do not use it directly.
 func (i Interceptor) OpenConnector(name string) (driver.Connector, error) {
 	if driver, ok := i.Driver.(driver.DriverContext); ok {
 		connector, err := driver.OpenConnector(name)
