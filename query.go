@@ -13,6 +13,7 @@ type queryer interface {
 	QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error)
 }
 
+// TODO: document me.
 func Query[T any](ctx context.Context, q queryer, query string, args ...any) iter.Seq2[T, error] {
 	return func(yield func(T, error) bool) {
 		rows, err := q.QueryContext(ctx, query, args...)
@@ -39,6 +40,7 @@ func Query[T any](ctx context.Context, q queryer, query string, args ...any) ite
 	}
 }
 
+// TODO: document me.
 func QueryRow[T any](ctx context.Context, q queryer, query string, args ...any) (T, error) {
 	rows, err := q.QueryContext(ctx, query, args...)
 	if err != nil {

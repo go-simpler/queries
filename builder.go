@@ -1,3 +1,4 @@
+// Package queries implements convenience helpers for working with SQL queries.
 package queries
 
 import (
@@ -5,6 +6,10 @@ import (
 	"strings"
 )
 
+// Builder is a raw SQL query builder.
+// The zero value is ready to use.
+// Do not copy a non-zero Builder.
+// Do not reuse a single Builder for multiple queries.
 type Builder struct {
 	query       strings.Builder
 	args        []any
@@ -12,6 +17,18 @@ type Builder struct {
 	placeholder rune
 }
 
+// Appendf formats according to the given format and appends the result to the query.
+// It works like [fmt.Appendf], i.e. all rules from the [fmt] package are applied.
+// In addition, Appendf supports %?, %$, and %@ verbs, which are automatically expanded to the query placeholders ?, $N, and @pN,
+// where N is the auto-incrementing counter.
+// The corresponding arguments can then be accessed with the [Builder.Args] method.
+// IMPORTANT: to avoid SQL injections, make sure to pass arguments from user input with placeholder verbs.
+// Always test your queries.
+//
+// Placeholder verbs to database placeholders:
+//   - MySQL, SQLite: %? -> ?
+//   - PostgreSQL:    %$ -> $N
+//   - MSSQL:         %@ -> @pN
 func (b *Builder) Appendf(format string, args ...any) {
 	a := make([]any, len(args))
 	for i, arg := range args {
@@ -20,6 +37,8 @@ func (b *Builder) Appendf(format string, args ...any) {
 	fmt.Fprintf(&b.query, format, a...)
 }
 
+// Query returns the query string.
+// If the query is invalid, e.g. too few/many arguments are given or different placeholders are used, Query panics.
 func (b *Builder) Query() string {
 	query := b.query.String()
 	if strings.Contains(query, "%!") {
@@ -34,6 +53,7 @@ func (b *Builder) Query() string {
 	return query
 }
 
+// Args returns the argument slice.
 func (b *Builder) Args() []any { return b.args }
 
 type argument struct {
@@ -41,7 +61,7 @@ type argument struct {
 	builder *Builder
 }
 
-// Format implements the [fmt.Formatter] interface.
+// Format implements [fmt.Formatter].
 func (a argument) Format(s fmt.State, verb rune) {
 	switch verb {
 	case '?', '$', '@':
