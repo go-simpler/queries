@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"database/sql/driver"
+	"iter"
 	"testing"
 	"time"
 
@@ -38,13 +39,18 @@ func TestIntegration(t *testing.T) {
 	ctx := t.Context()
 
 	for name, database := range DBs {
+		var execCalls int
+		var queryCalls int
+
 		interceptor := queries.Interceptor{
 			Driver: database.driver,
 			ExecContext: func(ctx context.Context, query string, args []driver.NamedValue, execer driver.ExecerContext) (driver.Result, error) {
+				execCalls++
 				t.Logf("[%s] ExecContext: %s %v", name, query, namedToAny(args))
 				return execer.ExecContext(ctx, query, args)
 			},
 			QueryContext: func(ctx context.Context, query string, args []driver.NamedValue, queryer driver.QueryerContext) (driver.Rows, error) {
+				queryCalls++
 				t.Logf("[%s] QueryContext: %s %v", name, query, namedToAny(args))
 				return queryer.QueryContext(ctx, query, args)
 			},
@@ -78,8 +84,16 @@ func TestIntegration(t *testing.T) {
 		for _, queryer := range []interface {
 			QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error)
 		}{db, tx} {
-			_, err := queries.QueryRow[User](ctx, queryer, "SELECT id, name, created_at FROM users WHERE id = 0")
+			_, err := queries.QueryRow[string](ctx, queryer, "SELECT name FROM users WHERE id = 0")
 			assert.IsErr[E](t, err, sql.ErrNoRows)
+
+			name, err := queries.QueryRow[string](ctx, queryer, "SELECT name FROM users WHERE id = 1")
+			assert.NoErr[F](t, err)
+			assert.Equal[E](t, name, TableUsers[0].Name)
+
+			names, err := collect(queries.Query[string](ctx, queryer, "SELECT name FROM users"))
+			assert.NoErr[F](t, err)
+			assert.Equal[E](t, names, []string{TableUsers[0].Name, TableUsers[1].Name, TableUsers[2].Name})
 
 			user, err := queries.QueryRow[User](ctx, queryer, "SELECT id, name, created_at FROM users WHERE id = 1")
 			assert.NoErr[F](t, err)
@@ -96,6 +110,8 @@ func TestIntegration(t *testing.T) {
 		}
 
 		assert.NoErr[F](t, tx.Commit())
+		assert.Equal[E](t, execCalls, 2)
+		assert.Equal[E](t, queryCalls, 5*2)
 	}
 }
 
@@ -105,6 +121,17 @@ func namedToAny(values []driver.NamedValue) []any {
 		args[i] = value.Value
 	}
 	return args
+}
+
+func collect[T any](seq iter.Seq2[T, error]) ([]T, error) {
+	var ts []T
+	for t, err := range seq {
+		if err != nil {
+			return nil, err
+		}
+		ts = append(ts, t)
+	}
+	return ts, nil
 }
 
 func migrate(ctx context.Context, db *sql.DB) error {

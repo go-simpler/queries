@@ -7,6 +7,7 @@ import (
 	"iter"
 	"reflect"
 	"sync"
+	"time"
 )
 
 type queryer interface {
@@ -84,27 +85,56 @@ type scanner interface {
 }
 
 func scan[T any](s scanner, columns []string) (T, error) {
+	if len(columns) == 0 {
+		panic("queries: no columns specified") // valid in PostgreSQL (for some reason).
+	}
+
 	var t T
 	v := reflect.ValueOf(&t).Elem()
-	if v.Kind() != reflect.Struct {
-		panic("queries: T must be a struct")
-	}
-
-	indexes := parseStruct(v.Type())
 	args := make([]any, len(columns))
 
-	for i, column := range columns {
-		idx, ok := indexes[column]
-		if !ok {
-			panic(fmt.Sprintf("queries: no field for column %q", column))
+	switch {
+	case scannable(v):
+		if len(columns) > 1 {
+			panic("queries: T must be a struct if len(columns) > 1")
 		}
-		args[i] = v.Field(idx).Addr().Interface()
+		args[0] = v.Addr().Interface()
+	case v.Kind() == reflect.Struct:
+		indexes := parseStruct(v.Type())
+		for i, column := range columns {
+			idx, ok := indexes[column]
+			if !ok {
+				panic(fmt.Sprintf("queries: no field for column %q", column))
+			}
+			args[i] = v.Field(idx).Addr().Interface()
+		}
+	default:
+		panic(fmt.Sprintf("queries: unsupported T %T", t))
 	}
+
 	if err := s.Scan(args...); err != nil {
 		return zero[T](), err
 	}
 
 	return t, nil
+}
+
+func scannable(v reflect.Value) bool {
+	switch v.Kind() {
+	case reflect.Bool,
+		reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64,
+		reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64,
+		reflect.Float32, reflect.Float64,
+		reflect.String:
+		return true
+	}
+	if v.Type() == reflect.TypeFor[time.Time]() {
+		return true
+	}
+	if v.Addr().Type().Implements(reflect.TypeFor[sql.Scanner]()) {
+		return true
+	}
+	return false
 }
 
 var cache sync.Map // map[reflect.Type]map[string]int
