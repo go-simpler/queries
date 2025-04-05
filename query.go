@@ -23,8 +23,14 @@ func Query[T any](ctx context.Context, q queryer, query string, args ...any) ite
 		}
 		defer rows.Close()
 
+		columns, err := rows.Columns()
+		if err != nil {
+			yield(zero[T](), err)
+			return
+		}
+
 		for rows.Next() {
-			t, err := scan[T](rows)
+			t, err := scan[T](rows, columns)
 			if err != nil {
 				yield(zero[T](), err)
 				return
@@ -48,6 +54,11 @@ func QueryRow[T any](ctx context.Context, q queryer, query string, args ...any) 
 	}
 	defer rows.Close()
 
+	columns, err := rows.Columns()
+	if err != nil {
+		return zero[T](), err
+	}
+
 	if !rows.Next() {
 		if err := rows.Err(); err != nil {
 			return zero[T](), err
@@ -55,7 +66,7 @@ func QueryRow[T any](ctx context.Context, q queryer, query string, args ...any) 
 		return zero[T](), sql.ErrNoRows
 	}
 
-	t, err := scan[T](rows)
+	t, err := scan[T](rows, columns)
 	if err != nil {
 		return zero[T](), err
 	}
@@ -68,21 +79,15 @@ func QueryRow[T any](ctx context.Context, q queryer, query string, args ...any) 
 
 func zero[T any]() (t T) { return t }
 
-type rows interface {
-	Columns() ([]string, error)
+type scanner interface {
 	Scan(...any) error
 }
 
-func scan[T any](rows rows) (T, error) {
+func scan[T any](s scanner, columns []string) (T, error) {
 	var t T
 	v := reflect.ValueOf(&t).Elem()
 	if v.Kind() != reflect.Struct {
 		panic("queries: T must be a struct")
-	}
-
-	columns, err := rows.Columns()
-	if err != nil {
-		return zero[T](), fmt.Errorf("getting column names: %w", err)
 	}
 
 	indexes := parseStruct(v.Type())
@@ -95,7 +100,7 @@ func scan[T any](rows rows) (T, error) {
 		}
 		args[i] = v.Field(idx).Addr().Interface()
 	}
-	if err := rows.Scan(args...); err != nil {
+	if err := s.Scan(args...); err != nil {
 		return zero[T](), err
 	}
 

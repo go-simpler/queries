@@ -11,7 +11,7 @@ import (
 
 func Test_scan(t *testing.T) {
 	t.Run("non-struct T", func(t *testing.T) {
-		fn := func() { _, _ = scan[int](new(mockRows)) }
+		fn := func() { _, _ = scan[int](nil, nil) }
 		assert.Panics[E](t, fn, "queries: T must be a struct")
 	})
 
@@ -19,64 +19,40 @@ func Test_scan(t *testing.T) {
 		type row struct {
 			Foo int `sql:""`
 		}
-		fn := func() { _, _ = scan[row](new(mockRows)) }
+		fn := func() { _, _ = scan[row](nil, nil) }
 		assert.Panics[E](t, fn, "queries: field Foo has an empty `sql` tag")
 	})
 
 	t.Run("missing field", func(t *testing.T) {
-		rows := mockRows{
-			columns: []string{"foo", "bar"},
-		}
-
 		type row struct {
 			Foo int `sql:"foo"`
 			Bar string
 		}
-		fn := func() { _, _ = scan[row](&rows) }
+		fn := func() { _, _ = scan[row](nil, []string{"foo", "bar"}) }
 		assert.Panics[E](t, fn, `queries: no field for column "bar"`)
 	})
 
-	t.Run("columns error", func(t *testing.T) {
-		someErr := errors.New("")
-
-		rows := mockRows{
-			columnsErr: someErr,
-		}
-
-		type row struct {
-			Foo int `sql:"foo"`
-		}
-		_, err := scan[row](&rows)
-		assert.IsErr[E](t, err, someErr)
-	})
-
 	t.Run("scan error", func(t *testing.T) {
-		someErr := errors.New("")
-
-		rows := mockRows{
-			columns: []string{"foo"},
-			scanErr: someErr,
-		}
+		columns := []string{"foo"}
+		s := mockScanner{err: errors.New("an error")}
 
 		type row struct {
 			Foo int `sql:"foo"`
 		}
-		_, err := scan[row](&rows)
-		assert.IsErr[E](t, err, someErr)
+		_, err := scan[row](&s, columns)
+		assert.IsErr[E](t, err, s.err)
 	})
 
 	t.Run("ok", func(t *testing.T) {
-		rows := mockRows{
-			columns: []string{"foo", "bar"},
-			values:  []any{1, "A"},
-		}
+		columns := []string{"foo", "bar"}
+		s := mockScanner{values: []any{1, "A"}}
 
 		type row struct {
 			Foo        int    `sql:"foo"`
 			Bar        string `sql:"bar"`
 			unexported bool
 		}
-		r, err := scan[row](&rows)
+		r, err := scan[row](&s, columns)
 		assert.NoErr[F](t, err)
 		assert.Equal[E](t, r.Foo, 1)
 		assert.Equal[E](t, r.Bar, "A")
@@ -84,26 +60,17 @@ func Test_scan(t *testing.T) {
 	})
 }
 
-type mockRows struct {
-	columns    []string
-	values     []any
-	columnsErr error
-	scanErr    error
+type mockScanner struct {
+	values []any
+	err    error
 }
 
-func (r *mockRows) Columns() ([]string, error) {
-	if r.columnsErr != nil {
-		return nil, r.columnsErr
-	}
-	return r.columns, nil
-}
-
-func (r *mockRows) Scan(dst ...any) error {
-	if r.scanErr != nil {
-		return r.scanErr
+func (s *mockScanner) Scan(dst ...any) error {
+	if s.err != nil {
+		return s.err
 	}
 	for i := range dst {
-		v := reflect.ValueOf(r.values[i])
+		v := reflect.ValueOf(s.values[i])
 		reflect.ValueOf(dst[i]).Elem().Set(v)
 	}
 	return nil
