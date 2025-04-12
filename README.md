@@ -59,8 +59,18 @@ type User struct {
     Name string `sql:"name"`
 }
 
+// single column, single row:
+name, _ := queries.QueryRow[string](ctx, db, "SELECT name FROM users WHERE id = 1")
+
+// single column, multiple rows:
+names, _ := queries.Collect(queries.Query[string](ctx, db, "SELECT name FROM users"))
+
+// multiple columns, single row:
+user, _ := queries.QueryRow[User](ctx, db, "SELECT id, name FROM users WHERE id = 1")
+
+// multiple columns, multiple rows:
 for user, _ := range queries.Query[User](ctx, db, "SELECT id, name FROM users") {
-    // user.ID, user.Name
+    // ...
 }
 ```
 
@@ -98,7 +108,6 @@ Integration tests cover the following databases and drivers:
 
 ## 🚧 TODOs
 
-- Add missing documentation.
 - Add more tests for different databases and drivers. See https://go.dev/wiki/SQLDrivers.
 - Add examples for tested databases and drivers.
 - Add benchmarks.

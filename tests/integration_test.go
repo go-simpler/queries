@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"database/sql/driver"
-	"iter"
 	"testing"
 	"time"
 
@@ -91,7 +90,7 @@ func TestIntegration(t *testing.T) {
 			assert.NoErr[F](t, err)
 			assert.Equal[E](t, name, TableUsers[0].Name)
 
-			names, err := collect(queries.Query[string](ctx, queryer, "SELECT name FROM users"))
+			names, err := queries.Collect(queries.Query[string](ctx, queryer, "SELECT name FROM users"))
 			assert.NoErr[F](t, err)
 			assert.Equal[E](t, names, []string{TableUsers[0].Name, TableUsers[1].Name, TableUsers[2].Name})
 
@@ -121,17 +120,6 @@ func namedToAny(values []driver.NamedValue) []any {
 		args[i] = value.Value
 	}
 	return args
-}
-
-func collect[T any](seq iter.Seq2[T, error]) ([]T, error) {
-	var ts []T
-	for t, err := range seq {
-		if err != nil {
-			return nil, err
-		}
-		ts = append(ts, t)
-	}
-	return ts, nil
 }
 
 func migrate(ctx context.Context, db *sql.DB) error {
