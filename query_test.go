@@ -3,13 +3,36 @@ package queries
 import (
 	"database/sql"
 	"errors"
+	"iter"
 	"reflect"
+	"slices"
 	"testing"
 	"time"
 
 	"go-simpler.org/queries/internal/assert"
 	. "go-simpler.org/queries/internal/assert/EF"
 )
+
+func TestCollect(t *testing.T) {
+	anErr := errors.New("an error")
+
+	tests := map[string]struct {
+		seq     iter.Seq2[int, error]
+		want    []int
+		wantErr error
+	}{
+		"no error": {slices.All([]error{nil, nil}), []int{0, 1}, nil},
+		"an error": {slices.All([]error{nil, anErr}), nil, anErr},
+	}
+
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			got, err := Collect(tt.seq)
+			assert.IsErr[F](t, err, tt.wantErr)
+			assert.Equal[E](t, got, tt.want)
+		})
+	}
+}
 
 func Test_scan(t *testing.T) {
 	t.Run("no columns", func(t *testing.T) {

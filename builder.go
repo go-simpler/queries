@@ -25,7 +25,7 @@ type Builder struct {
 // IMPORTANT: to avoid SQL injections, make sure to pass arguments from user input with placeholder verbs.
 // Always test your queries.
 //
-// Placeholder verbs to database placeholders:
+// Placeholder verbs map to the following database placeholders:
 //   - MySQL, SQLite: %? -> ?
 //   - PostgreSQL:    %$ -> $N
 //   - MSSQL:         %@ -> @pN
