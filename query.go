@@ -77,7 +77,7 @@ func Query[T any](ctx context.Context, q Queryer, query string, args ...any) ite
 
 // QueryRow is a [Query] variant for queries that are expected to return at most one row,
 // so instead of an iterator, it returns a single T.
-// Like [sql.DB.QueryRowContext], QueryRow returns [sql.ErrNoRows] if the query selects no rows,
+// Like [sql.DB.QueryRow], QueryRow returns [sql.ErrNoRows] if the query selects no rows,
 // otherwise it scans the first row and discards the rest.
 // See the [Query] documentation for details on supported Ts.
 func QueryRow[T any](ctx context.Context, q Queryer, query string, args ...any) (T, error) {
