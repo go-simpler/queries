@@ -23,3 +23,6 @@ test:
 
 test/cover: test
 	@go tool cover -html=tests/coverage.out
+
+bench:
+	@go test -run='^$$' -bench=. -cpuprofile=profile.cpu -memprofile=profile.mem
