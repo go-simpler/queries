@@ -27,6 +27,9 @@ jobs:
       - name: Run tests
         run: CONTAINER_RUNNER=docker make test
 
+      - name: Run benchmarks
+        run: make bench
+
       # https://github.com/codecov/codecov-action
       - name: Upload coverage
         uses: codecov/codecov-action@v5
