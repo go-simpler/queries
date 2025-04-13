@@ -42,8 +42,8 @@ func (i Interceptor) Open(name string) (driver.Conn, error) {
 // OpenConnector implements [driver.DriverContext].
 // Do not use it directly.
 func (i Interceptor) OpenConnector(name string) (driver.Connector, error) {
-	if driver, ok := i.Driver.(driver.DriverContext); ok {
-		connector, err := driver.OpenConnector(name)
+	if d, ok := i.Driver.(driver.DriverContext); ok {
+		connector, err := d.OpenConnector(name)
 		if err != nil {
 			return nil, err
 		}
