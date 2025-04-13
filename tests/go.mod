@@ -1,6 +1,6 @@
 module tests
 
-go 1.24.1
+go 1.23
 
 require (
 	github.com/go-sql-driver/mysql v1.9.0
