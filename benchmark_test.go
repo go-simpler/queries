@@ -16,10 +16,11 @@ func benchmarkScan[T dst](b *testing.B, cache bool) {
 	columns := t.columns()
 	s := mockScanner{values: t.values()}
 
-	for b.Loop() {
+	b.ResetTimer()
+	b.ReportAllocs()
+	for range b.N {
 		_, _ = scan[T](&s, columns)
 	}
-	b.ReportAllocs()
 }
 
 type dst interface {
