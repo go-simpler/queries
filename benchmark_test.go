@@ -17,7 +17,7 @@ func benchmarkScan[T dst](b *testing.B, cache bool) {
 	s := mockScanner{values: t.values()}
 
 	for b.Loop() {
-		scan[T](&s, columns)
+		_, _ = scan[T](&s, columns)
 	}
 	b.ReportAllocs()
 }
