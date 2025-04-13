@@ -182,13 +182,18 @@ func scannable(v reflect.Value) bool {
 	return false
 }
 
-var cache sync.Map // map[reflect.Type]map[string]int
+var (
+	useCache = true
+	cache    sync.Map // map[reflect.Type]map[string]int
+)
 
 // parseStruct parses the given struct type and returns a map of column names to field indexes.
 // The result is cached, so each struct type is parsed only once.
 func parseStruct(t reflect.Type) map[string]int {
-	if m, ok := cache.Load(t); ok {
-		return m.(map[string]int)
+	if useCache {
+		if m, ok := cache.Load(t); ok {
+			return m.(map[string]int)
+		}
 	}
 
 	indexes := make(map[string]int, t.NumField())
@@ -198,7 +203,6 @@ func parseStruct(t reflect.Type) map[string]int {
 		if !field.IsExported() {
 			continue
 		}
-
 		column, ok := field.Tag.Lookup("sql")
 		if !ok {
 			continue
@@ -206,10 +210,11 @@ func parseStruct(t reflect.Type) map[string]int {
 		if column == "" {
 			panic(fmt.Sprintf("queries: field %s has an empty `sql` tag", field.Name))
 		}
-
 		indexes[column] = i
 	}
 
-	cache.Store(t, indexes)
+	if useCache {
+		cache.Store(t, indexes)
+	}
 	return indexes
 }
