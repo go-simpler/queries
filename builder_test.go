@@ -21,7 +21,7 @@ func TestBuilder(t *testing.T) {
 	assert.Equal[E](t, qb.Args(), []any{42, "test", false})
 }
 
-func TestBuilder_placeholders(t *testing.T) {
+func TestBuilder_dialects(t *testing.T) {
 	tests := map[string]struct {
 		format string
 		query  string
@@ -50,31 +50,39 @@ func TestBuilder_placeholders(t *testing.T) {
 	}
 }
 
+func TestBuilder_slice(t *testing.T) {
+	var qb queries.Builder
+	qb.Appendf("SELECT * FROM tbl WHERE foo IN (%+$)", []int{1, 2, 3})
+
+	assert.Equal[E](t, qb.Query(), "SELECT * FROM tbl WHERE foo IN ($1, $2, $3)")
+	assert.Equal[E](t, qb.Args(), []any{1, 2, 3})
+}
+
 func TestBuilder_badQuery(t *testing.T) {
 	tests := map[string]struct {
-		appends  func(*queries.Builder)
+		appendf  func(*queries.Builder)
 		panicMsg string
 	}{
 		"bad verb": {
-			appends: func(qb *queries.Builder) {
+			appendf: func(qb *queries.Builder) {
 				qb.Appendf("SELECT %d FROM tbl", "foo")
 			},
 			panicMsg: "queries: bad query: SELECT %!d(string=foo) FROM tbl",
 		},
 		"too few arguments": {
-			appends: func(qb *queries.Builder) {
+			appendf: func(qb *queries.Builder) {
 				qb.Appendf("SELECT %s FROM tbl")
 			},
 			panicMsg: "queries: bad query: SELECT %!s(MISSING) FROM tbl",
 		},
 		"too many arguments": {
-			appends: func(qb *queries.Builder) {
+			appendf: func(qb *queries.Builder) {
 				qb.Appendf("SELECT %s FROM tbl", "foo", "bar")
 			},
 			panicMsg: "queries: bad query: SELECT foo FROM tbl%!(EXTRA queries.argument=bar)",
 		},
 		"different placeholders": {
-			appends: func(qb *queries.Builder) {
+			appendf: func(qb *queries.Builder) {
 				qb.Appendf("SELECT * FROM tbl WHERE foo = %? AND bar = %$ AND baz = %@", 1, 2, 3)
 			},
 			panicMsg: "queries: different placeholders used",
@@ -84,7 +92,7 @@ func TestBuilder_badQuery(t *testing.T) {
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
 			var qb queries.Builder
-			tt.appends(&qb)
+			tt.appendf(&qb)
 			assert.Panics[E](t, func() { _ = qb.Query() }, tt.panicMsg)
 		})
 	}

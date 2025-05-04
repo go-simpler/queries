@@ -3,13 +3,14 @@ package queries
 
 import (
 	"fmt"
+	"io"
+	"reflect"
 	"strings"
 )
 
 // Builder is a raw SQL query builder.
 // The zero value is ready to use.
 // Do not copy a non-zero Builder.
-// Do not reuse a single Builder for multiple queries.
 type Builder struct {
 	query       strings.Builder
 	args        []any
@@ -22,8 +23,8 @@ type Builder struct {
 // In addition, Appendf supports %?, %$, and %@ verbs, which are automatically expanded to the query placeholders ?, $N, and @pN,
 // where N is the auto-incrementing counter.
 // The corresponding arguments can then be accessed with the [Builder.Args] method.
+//
 // IMPORTANT: to avoid SQL injections, make sure to pass arguments from user input with placeholder verbs.
-// Always test your queries.
 //
 // Placeholder verbs map to the following database placeholders:
 //   - MySQL, SQLite: %? -> ?
@@ -53,7 +54,7 @@ func (b *Builder) Query() string {
 	return query
 }
 
-// Args returns the argument slice.
+// Args returns the query arguments.
 func (b *Builder) Args() []any { return b.args }
 
 type argument struct {
@@ -65,26 +66,59 @@ type argument struct {
 func (a argument) Format(s fmt.State, verb rune) {
 	switch verb {
 	case '?', '$', '@':
-		a.builder.args = append(a.builder.args, a.value)
 		if a.builder.placeholder == 0 {
 			a.builder.placeholder = verb
 		}
 		if a.builder.placeholder != verb {
 			a.builder.placeholder = -1
 		}
-	}
-
-	switch verb {
-	case '?': // MySQL, SQLite
-		fmt.Fprint(s, "?")
-	case '$': // PostgreSQL
-		a.builder.counter++
-		fmt.Fprintf(s, "$%d", a.builder.counter)
-	case '@': // MSSQL
-		a.builder.counter++
-		fmt.Fprintf(s, "@p%d", a.builder.counter)
 	default:
 		format := fmt.FormatString(s, verb)
 		fmt.Fprintf(s, format, a.value)
+		return
 	}
+
+	if s.Flag('+') {
+		a.writeSlice(s, verb)
+	} else {
+		a.writePlaceholder(s, verb)
+		a.builder.args = append(a.builder.args, a.value)
+	}
+}
+
+func (a argument) writePlaceholder(w io.Writer, verb rune) {
+	switch verb {
+	case '?': // MySQL, SQLite
+		fmt.Fprint(w, "?")
+	case '$': // PostgreSQL
+		a.builder.counter++
+		fmt.Fprintf(w, "$%d", a.builder.counter)
+	case '@': // MSSQL
+		a.builder.counter++
+		fmt.Fprintf(w, "@p%d", a.builder.counter)
+	}
+}
+
+func (a argument) writeSlice(w io.Writer, verb rune) {
+	slice := reflect.ValueOf(a.value)
+	if slice.Kind() != reflect.Slice {
+		panic("queries: %+ argument must be a slice")
+	}
+
+	if slice.Len() == 0 {
+		fmt.Fprint(w, "NULL") // "IN (NULL)" is valid SQL.
+		return
+	}
+
+	args := reflect.ValueOf(a.builder.args)
+
+	for i := range slice.Len() {
+		if i > 0 {
+			fmt.Fprint(w, ", ")
+		}
+		a.writePlaceholder(w, verb)
+		args = reflect.Append(args, slice.Index(i))
+	}
+
+	a.builder.args = args.Interface().([]any)
 }
