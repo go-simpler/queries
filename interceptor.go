@@ -99,7 +99,7 @@ func (c wrappedConn) PrepareContext(ctx context.Context, query string) (driver.S
 	if !ok {
 		panic("queries: driver does not implement driver.ConnPrepareContext")
 	}
-	if c.interceptor.ExecContext != nil {
+	if c.interceptor.PrepareContext != nil {
 		return c.interceptor.PrepareContext(ctx, query, preparer)
 	}
 	return preparer.PrepareContext(ctx, query)
