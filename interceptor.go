@@ -31,6 +31,8 @@ type Interceptor struct {
 	// The implementation must call queryer.QueryContext(ctx, query, args) and return the result.
 	// Optional.
 	QueryContext func(ctx context.Context, query string, args []driver.NamedValue, queryer driver.QueryerContext) (driver.Rows, error)
+
+	PrepareContext func(ctx context.Context, query string, preparer driver.ConnPrepareContext) (driver.Stmt, error)
 }
 
 // Open implements [driver.Driver].
@@ -54,9 +56,10 @@ func (i Interceptor) OpenConnector(name string) (driver.Connector, error) {
 }
 
 var (
-	_ driver.Conn           = wrappedConn{}
-	_ driver.ExecerContext  = wrappedConn{}
-	_ driver.QueryerContext = wrappedConn{}
+	_ driver.Conn               = wrappedConn{}
+	_ driver.ExecerContext      = wrappedConn{}
+	_ driver.QueryerContext     = wrappedConn{}
+	_ driver.ConnPrepareContext = wrappedConn{}
 )
 
 type wrappedConn struct {
@@ -89,6 +92,18 @@ func (c wrappedConn) QueryContext(ctx context.Context, query string, args []driv
 }
 
 var _ driver.Connector = wrappedConnector{}
+
+// PrepareContext implements [driver.ConnPrepareContext].
+func (c wrappedConn) PrepareContext(ctx context.Context, query string) (driver.Stmt, error) {
+	preparer, ok := c.Conn.(driver.ConnPrepareContext)
+	if !ok {
+		panic("queries: driver does not implement driver.ConnPrepareContext")
+	}
+	if c.interceptor.ExecContext != nil {
+		return c.interceptor.PrepareContext(ctx, query, preparer)
+	}
+	return preparer.PrepareContext(ctx, query)
+}
 
 type wrappedConnector struct {
 	driver.Connector
