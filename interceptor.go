@@ -10,6 +10,8 @@ var (
 	_ driver.DriverContext = Interceptor{}
 )
 
+// TODO: document that database/sql falls back to Prepare if the driver returns ErrSkip for Exec/Query.
+
 // Interceptor is a [driver.Driver] wrapper that allows to register callbacks for database queries.
 // It must first be registered with [sql.Register] with the same name that is then passed to [sql.Open]:
 //
@@ -32,6 +34,9 @@ type Interceptor struct {
 	// Optional.
 	QueryContext func(ctx context.Context, query string, args []driver.NamedValue, queryer driver.QueryerContext) (driver.Rows, error)
 
+	// PrepareContext is a callback for [sql.DB.PrepareContext].
+	// The implementation must call preparer.ConnPrepareContext(ctx, query) and return the result.
+	// Optional.
 	PrepareContext func(ctx context.Context, query string, preparer driver.ConnPrepareContext) (driver.Stmt, error)
 }
 

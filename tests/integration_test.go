@@ -40,6 +40,7 @@ func TestIntegration(t *testing.T) {
 	for name, database := range DBs {
 		var execCalls int
 		var queryCalls int
+		var prepareCalls int
 
 		interceptor := queries.Interceptor{
 			Driver: database.driver,
@@ -52,6 +53,11 @@ func TestIntegration(t *testing.T) {
 				queryCalls++
 				t.Logf("[%s] QueryContext: %s %v", name, query, namedToAny(args))
 				return queryer.QueryContext(ctx, query, args)
+			},
+			PrepareContext: func(ctx context.Context, query string, preparer driver.ConnPrepareContext) (driver.Stmt, error) {
+				prepareCalls++
+				t.Logf("[%s] PrepareContext: %s", name, query)
+				return preparer.PrepareContext(ctx, query)
 			},
 		}
 
@@ -111,6 +117,12 @@ func TestIntegration(t *testing.T) {
 		assert.NoErr[F](t, tx.Commit())
 		assert.Equal[E](t, execCalls, 2)
 		assert.Equal[E](t, queryCalls, 5*2)
+		if name == "mysql" {
+			// github.com/go-sql-driver/mysql falls back to PrepareContext for queries with arguments.
+			assert.Equal[E](t, prepareCalls, 1)
+		} else {
+			assert.Equal[E](t, prepareCalls, 0)
+		}
 	}
 }
 
