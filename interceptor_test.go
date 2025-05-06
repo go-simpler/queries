@@ -15,18 +15,23 @@ import (
 func TestInterceptor(t *testing.T) {
 	ctx := context.Background()
 
-	var execIntercepted bool
-	var queryIntercepted bool
+	var execCalled bool
+	var queryCalled bool
+	var prepareCalled bool
 
 	interceptor := queries.Interceptor{
 		Driver: mockDriver{conn: spyConn{}},
 		ExecContext: func(ctx context.Context, query string, args []driver.NamedValue, execer driver.ExecerContext) (driver.Result, error) {
-			execIntercepted = true
+			execCalled = true
 			return execer.ExecContext(ctx, query, args)
 		},
 		QueryContext: func(ctx context.Context, query string, args []driver.NamedValue, queryer driver.QueryerContext) (driver.Rows, error) {
-			queryIntercepted = true
+			queryCalled = true
 			return queryer.QueryContext(ctx, query, args)
+		},
+		PrepareContext: func(ctx context.Context, query string, preparer driver.ConnPrepareContext) (driver.Stmt, error) {
+			prepareCalled = true
+			return preparer.PrepareContext(ctx, query)
 		},
 	}
 
@@ -39,11 +44,15 @@ func TestInterceptor(t *testing.T) {
 
 	_, err = db.ExecContext(ctx, "")
 	assert.IsErr[E](t, err, errCalled)
-	assert.Equal[E](t, execIntercepted, true)
+	assert.Equal[E](t, execCalled, true)
 
 	_, err = db.QueryContext(ctx, "") //nolint:gocritic // sqlQuery: unused result is fine here.
 	assert.IsErr[E](t, err, errCalled)
-	assert.Equal[E](t, queryIntercepted, true)
+	assert.Equal[E](t, queryCalled, true)
+
+	_, err = db.PrepareContext(ctx, "")
+	assert.IsErr[E](t, err, errCalled)
+	assert.Equal[E](t, prepareCalled, true)
 }
 
 func TestInterceptor_passthrough(t *testing.T) {
@@ -64,6 +73,9 @@ func TestInterceptor_passthrough(t *testing.T) {
 	assert.IsErr[E](t, err, errCalled)
 
 	_, err = db.QueryContext(ctx, "") //nolint:gocritic // sqlQuery: unused result is fine here.
+	assert.IsErr[E](t, err, errCalled)
+
+	_, err = db.PrepareContext(ctx, "")
 	assert.IsErr[E](t, err, errCalled)
 }
 
@@ -86,6 +98,9 @@ func TestInterceptor_unimplemented(t *testing.T) {
 
 	queryFn := func() { _, _ = db.QueryContext(ctx, "") } //nolint:gocritic // sqlQuery: unused result is fine here.
 	assert.Panics[E](t, queryFn, "queries: driver does not implement driver.QueryerContext")
+
+	prepareFn := func() { _, _ = db.PrepareContext(ctx, "") }
+	assert.Panics[E](t, prepareFn, "queries: driver does not implement driver.ConnPrepareContext")
 }
 
 func TestInterceptor_driver(t *testing.T) {
@@ -121,5 +136,9 @@ func (spyConn) ExecContext(context.Context, string, []driver.NamedValue) (driver
 }
 
 func (spyConn) QueryContext(context.Context, string, []driver.NamedValue) (driver.Rows, error) {
+	return nil, errCalled
+}
+
+func (spyConn) PrepareContext(context.Context, string) (driver.Stmt, error) {
 	return nil, errCalled
 }

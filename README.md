@@ -94,17 +94,14 @@ db, _ := sql.Open("interceptor", "dsn")
 
 db.ExecContext(ctx, "INSERT INTO users VALUES (1, 'John Doe')")
 // stderr: INFO ExecContext query="INSERT INTO users VALUES (1, 'John Doe')"
+
 db.QueryContext(ctx, "SELECT id, name FROM users")
 // stderr: INFO QueryContext query="SELECT id, name FROM users"
 ```
 
-> [!note]
-> To keep the implementation simple, only `ExecContext` and `QueryContext` callbacks are supported.
-> If you need to intercept other database operations, such as `sql.DB.BeginTx`, consider using [ngrok/sqlmw][3] instead.
-
 Integration tests cover the following databases and drivers:
-- PostgreSQL with [jackx/pgx][4]
-- MySQL with [go-sql-driver/mysql][5]
+- PostgreSQL with [jackx/pgx][3]
+- MySQL with [go-sql-driver/mysql][4]
 
 ## 🚧 TODOs
 
@@ -114,6 +111,5 @@ Integration tests cover the following databases and drivers:
 
 [1]: https://github.com/golang/go/issues/61637
 [2]: https://grpc.io/docs/guides/interceptors
-[3]: https://github.com/ngrok/sqlmw
-[4]: https://github.com/jackc/pgx
-[5]: https://github.com/go-sql-driver/mysql
+[3]: https://github.com/jackc/pgx
+[4]: https://github.com/go-sql-driver/mysql
