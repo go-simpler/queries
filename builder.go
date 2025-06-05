@@ -30,6 +30,8 @@ type Builder struct {
 //   - MySQL, SQLite: %? -> ?
 //   - PostgreSQL:    %$ -> $N
 //   - MSSQL:         %@ -> @pN
+//
+// TODO: document slice arguments usage.
 func (b *Builder) Appendf(format string, args ...any) {
 	a := make([]any, len(args))
 	for i, arg := range args {
@@ -106,7 +108,13 @@ func (a argument) writeSlice(w io.Writer, verb rune) {
 	}
 
 	if slice.Len() == 0 {
-		fmt.Fprint(w, "NULL") // "IN (NULL)" is valid SQL.
+		// TODO: revisit.
+		// Unlike other errors produced by Builder,
+		// which are all the result of a programmer's mistake,
+		// this one may be caused by user input, so panicking is not an option here.
+		// "WHERE IN (NULL)" will always result in an empty result set,
+		// which may be undesirable in some situations.
+		fmt.Fprint(w, "NULL")
 		return
 	}
 
