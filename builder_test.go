@@ -40,11 +40,11 @@ func TestBuilder_dialects(t *testing.T) {
 		},
 	}
 
-	for name, tt := range tests {
+	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
 			var qb queries.Builder
-			qb.Appendf(tt.format, 1, 2, 3)
-			assert.Equal[E](t, qb.Query(), tt.query)
+			qb.Appendf(test.format, 1, 2, 3)
+			assert.Equal[E](t, qb.Query(), test.query)
 			assert.Equal[E](t, qb.Args(), []any{1, 2, 3})
 		})
 	}
@@ -68,46 +68,46 @@ func TestBuilder_sliceArgument(t *testing.T) {
 
 func TestBuilder_badQuery(t *testing.T) {
 	tests := map[string]struct {
-		appendf  func(*queries.Builder)
-		panicMsg string
+		appendf func(*queries.Builder)
+		query   string
 	}{
 		"wrong verb": {
 			appendf: func(qb *queries.Builder) {
 				qb.Appendf("SELECT %d FROM tbl", "foo")
 			},
-			panicMsg: "queries: bad query: SELECT %!d(string=foo) FROM tbl",
+			query: "SELECT %!d(string=foo) FROM tbl",
 		},
 		"too few arguments": {
 			appendf: func(qb *queries.Builder) {
 				qb.Appendf("SELECT %s FROM tbl")
 			},
-			panicMsg: "queries: bad query: SELECT %!s(MISSING) FROM tbl",
+			query: "SELECT %!s(MISSING) FROM tbl",
 		},
 		"too many arguments": {
 			appendf: func(qb *queries.Builder) {
 				qb.Appendf("SELECT %s FROM tbl", "foo", "bar")
 			},
-			panicMsg: "queries: bad query: SELECT foo FROM tbl%!(EXTRA queries.argument=bar)",
+			query: "SELECT foo FROM tbl%!(EXTRA queries.argument=bar)",
 		},
-		"different placeholders": {
+		"unexpected placeholder": {
 			appendf: func(qb *queries.Builder) {
-				qb.Appendf("SELECT * FROM tbl WHERE foo = %? AND bar = %$ AND baz = %@", 1, 2, 3)
+				qb.Appendf("SELECT * FROM tbl WHERE foo = %? AND bar = %$", 1, 2)
 			},
-			panicMsg: "queries: different placeholders used",
+			query: "SELECT * FROM tbl WHERE foo = ? AND bar = %!$(PANIC=Format method: unexpected placeholder)",
 		},
 		"non-slice argument": {
 			appendf: func(qb *queries.Builder) {
 				qb.Appendf("SELECT * FROM tbl WHERE foo IN (%+$)", 1)
 			},
-			panicMsg: "queries: bad query: SELECT * FROM tbl WHERE foo IN (%!$(PANIC=Format method: queries: %+ argument must be a slice))",
+			query: "SELECT * FROM tbl WHERE foo IN (%!$(PANIC=Format method: non-slice argument))",
 		},
 	}
 
-	for name, tt := range tests {
+	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
 			var qb queries.Builder
-			tt.appendf(&qb)
-			assert.Panics[E](t, func() { qb.Query() }, tt.panicMsg)
+			test.appendf(&qb)
+			assert.Equal[E](t, qb.Query(), test.query)
 		})
 	}
 }

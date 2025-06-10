@@ -41,20 +41,7 @@ func (b *Builder) Appendf(format string, args ...any) {
 }
 
 // Query returns the query string.
-// If the query is invalid, e.g. too few/many arguments are given or different placeholders are used, Query panics.
-func (b *Builder) Query() string {
-	query := b.query.String()
-	if strings.Contains(query, "%!") {
-		// fmt silently recovers panics and writes them to the output.
-		// We want panics to be loud, so we find and rethrow them.
-		// See also https://github.com/golang/go/issues/28150.
-		panic(fmt.Sprintf("queries: bad query: %s", query))
-	}
-	if b.placeholder == -1 {
-		panic("queries: different placeholders used")
-	}
-	return query
-}
+func (b *Builder) Query() string { return b.query.String() }
 
 // Args returns the query arguments.
 func (b *Builder) Args() []any { return b.args }
@@ -72,7 +59,7 @@ func (a argument) Format(s fmt.State, verb rune) {
 			a.builder.placeholder = verb
 		}
 		if a.builder.placeholder != verb {
-			a.builder.placeholder = -1
+			panic("unexpected placeholder")
 		}
 	default:
 		format := fmt.FormatString(s, verb)
@@ -104,29 +91,22 @@ func (a argument) writePlaceholder(w io.Writer, verb rune) {
 func (a argument) writeSlice(w io.Writer, verb rune) {
 	slice := reflect.ValueOf(a.value)
 	if slice.Kind() != reflect.Slice {
-		panic("queries: %+ argument must be a slice")
+		panic("non-slice argument")
 	}
 
 	if slice.Len() == 0 {
 		// TODO: revisit.
-		// Unlike other errors produced by Builder,
-		// which are all the result of a programmer's mistake,
-		// this one may be caused by user input, so panicking is not an option here.
 		// "WHERE IN (NULL)" will always result in an empty result set,
 		// which may be undesirable in some situations.
 		fmt.Fprint(w, "NULL")
 		return
 	}
 
-	args := reflect.ValueOf(a.builder.args)
-
 	for i := range slice.Len() {
 		if i > 0 {
 			fmt.Fprint(w, ", ")
 		}
 		a.writePlaceholder(w, verb)
-		args = reflect.Append(args, slice.Index(i))
+		a.builder.args = append(a.builder.args, slice.Index(i).Interface())
 	}
-
-	a.builder.args = args.Interface().([]any)
 }
