@@ -41,13 +41,11 @@ type Interceptor struct {
 }
 
 // Open implements [driver.Driver].
-// Do not use it directly.
 func (i Interceptor) Open(name string) (driver.Conn, error) {
 	panic("unreachable") // driver.DriverContext always takes precedence over driver.Driver.
 }
 
 // OpenConnector implements [driver.DriverContext].
-// Do not use it directly.
 func (i Interceptor) OpenConnector(name string) (driver.Connector, error) {
 	if d, ok := i.Driver.(driver.DriverContext); ok {
 		connector, err := d.OpenConnector(name)
