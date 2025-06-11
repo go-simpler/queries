@@ -82,7 +82,7 @@ func TestIntegration(t *testing.T) {
 
 		assert.NoErr[F](t, migrate(ctx, db))
 
-		tx, err := db.BeginTx(ctx, nil)
+		tx, err := db.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelSerializable})
 		assert.NoErr[F](t, err)
 		defer tx.Rollback()
 

@@ -20,7 +20,8 @@ var (
 //	db, err := sql.Open("interceptor", "dsn")
 type Interceptor struct {
 	// Driver is a database driver.
-	// It must implement [driver.ExecerContext] and [driver.QueryerContext] (most drivers do).
+	// It must implement [driver.Pinger], [driver.ExecerContext], [driver.QueryerContext],
+	// [driver.ConnPrepareContext], and [driver.ConnBeginTx] (most drivers do).
 	// Required.
 	Driver driver.Driver
 
@@ -60,14 +61,25 @@ func (i Interceptor) OpenConnector(name string) (driver.Connector, error) {
 
 var (
 	_ driver.Conn               = wrappedConn{}
+	_ driver.Pinger             = wrappedConn{}
 	_ driver.ExecerContext      = wrappedConn{}
 	_ driver.QueryerContext     = wrappedConn{}
 	_ driver.ConnPrepareContext = wrappedConn{}
+	_ driver.ConnBeginTx        = wrappedConn{}
 )
 
 type wrappedConn struct {
 	driver.Conn
 	interceptor Interceptor
+}
+
+// Ping implements [driver.Pinger].
+func (c wrappedConn) Ping(ctx context.Context) error {
+	pinger, ok := c.Conn.(driver.Pinger)
+	if !ok {
+		panic("queries: driver does not implement driver.Pinger")
+	}
+	return pinger.Ping(ctx)
 }
 
 // ExecContext implements [driver.ExecerContext].
@@ -94,8 +106,6 @@ func (c wrappedConn) QueryContext(ctx context.Context, query string, args []driv
 	return queryer.QueryContext(ctx, query, args)
 }
 
-var _ driver.Connector = wrappedConnector{}
-
 // PrepareContext implements [driver.ConnPrepareContext].
 func (c wrappedConn) PrepareContext(ctx context.Context, query string) (driver.Stmt, error) {
 	preparer, ok := c.Conn.(driver.ConnPrepareContext)
@@ -108,6 +118,44 @@ func (c wrappedConn) PrepareContext(ctx context.Context, query string) (driver.S
 	return preparer.PrepareContext(ctx, query)
 }
 
+// BeginTx implements [driver.ConnBeginTx].
+func (c wrappedConn) BeginTx(ctx context.Context, opts driver.TxOptions) (driver.Tx, error) {
+	beginner, ok := c.Conn.(driver.ConnBeginTx)
+	if !ok {
+		panic("queries: driver does not implement driver.ConnBeginTx")
+	}
+	return beginner.BeginTx(ctx, opts)
+}
+
+var _ driver.SessionResetter = wrappedConnSessionResetter{}
+
+type wrappedConnSessionResetter struct{ wrappedConn }
+
+// ResetSession implements [driver.SessionResetter].
+func (c wrappedConnSessionResetter) ResetSession(ctx context.Context) error {
+	return c.Conn.(driver.SessionResetter).ResetSession(ctx)
+}
+
+var _ driver.Validator = wrappedConnValidator{}
+
+type wrappedConnValidator struct{ wrappedConn }
+
+// IsValid implements [driver.Validator].
+func (c wrappedConnValidator) IsValid() bool {
+	return c.Conn.(driver.Validator).IsValid()
+}
+
+var _ driver.NamedValueChecker = wrappedConnNamedValueChecker{}
+
+type wrappedConnNamedValueChecker struct{ wrappedConn }
+
+// CheckNamedValue implements [driver.NamedValueChecker].
+func (c wrappedConnNamedValueChecker) CheckNamedValue(nv *driver.NamedValue) error {
+	return c.Conn.(driver.NamedValueChecker).CheckNamedValue(nv)
+}
+
+var _ driver.Connector = wrappedConnector{}
+
 type wrappedConnector struct {
 	driver.Connector
 	interceptor Interceptor
@@ -119,7 +167,64 @@ func (c wrappedConnector) Connect(ctx context.Context) (driver.Conn, error) {
 	if err != nil {
 		return nil, err
 	}
-	return wrappedConn{conn, c.interceptor}, nil
+
+	wconn := wrappedConn{conn, c.interceptor}
+	_, isSessionResetter := conn.(driver.SessionResetter)
+	_, isValidator := conn.(driver.Validator)
+	_, isNamedValueChecker := conn.(driver.NamedValueChecker)
+
+	switch {
+	case isSessionResetter && isValidator && isNamedValueChecker:
+		return struct {
+			wrappedConn
+			wrappedConnSessionResetter
+			wrappedConnValidator
+			wrappedConnNamedValueChecker
+		}{
+			wconn,
+			wrappedConnSessionResetter{wconn},
+			wrappedConnValidator{wconn},
+			wrappedConnNamedValueChecker{wconn},
+		}, nil
+	case isSessionResetter && isValidator:
+		return struct {
+			wrappedConn
+			wrappedConnSessionResetter
+			wrappedConnValidator
+		}{
+			wconn,
+			wrappedConnSessionResetter{wconn},
+			wrappedConnValidator{wconn},
+		}, nil
+	case isSessionResetter && isNamedValueChecker:
+		return struct {
+			wrappedConn
+			wrappedConnSessionResetter
+			wrappedConnNamedValueChecker
+		}{
+			wconn,
+			wrappedConnSessionResetter{wconn},
+			wrappedConnNamedValueChecker{wconn},
+		}, nil
+	case isValidator && isNamedValueChecker:
+		return struct {
+			wrappedConn
+			wrappedConnValidator
+			wrappedConnNamedValueChecker
+		}{
+			wconn,
+			wrappedConnValidator{wconn},
+			wrappedConnNamedValueChecker{wconn},
+		}, nil
+	case isSessionResetter:
+		return wrappedConnSessionResetter{wconn}, nil
+	case isValidator:
+		return wrappedConnValidator{wconn}, nil
+	case isNamedValueChecker:
+		return wrappedConnNamedValueChecker{wconn}, nil
+	default:
+		return wconn, nil
+	}
 }
 
 // copied from https://go.dev/src/database/sql/sql.go
@@ -128,5 +233,5 @@ type dsnConnector struct {
 	driver driver.Driver
 }
 
-func (t dsnConnector) Connect(_ context.Context) (driver.Conn, error) { return t.driver.Open(t.dsn) }
-func (t dsnConnector) Driver() driver.Driver                          { return t.driver }
+func (t dsnConnector) Connect(context.Context) (driver.Conn, error) { return t.driver.Open(t.dsn) }
+func (t dsnConnector) Driver() driver.Driver                        { return t.driver }
