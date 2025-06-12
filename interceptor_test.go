@@ -93,6 +93,9 @@ func TestInterceptor_unimplemented(t *testing.T) {
 	assert.NoErr[F](t, err)
 	defer db.Close()
 
+	pingFn := func() { _ = db.PingContext(ctx) }
+	assert.Panics[E](t, pingFn, "queries: driver does not implement driver.Pinger")
+
 	execFn := func() { _, _ = db.ExecContext(ctx, "") }
 	assert.Panics[E](t, execFn, "queries: driver does not implement driver.ExecerContext")
 
@@ -101,6 +104,9 @@ func TestInterceptor_unimplemented(t *testing.T) {
 
 	prepareFn := func() { _, _ = db.PrepareContext(ctx, "") }
 	assert.Panics[E](t, prepareFn, "queries: driver does not implement driver.ConnPrepareContext")
+
+	beginFn := func() { _, _ = db.BeginTx(ctx, nil) }
+	assert.Panics[E](t, beginFn, "queries: driver does not implement driver.ConnBeginTx")
 }
 
 func TestInterceptor_driver(t *testing.T) {

@@ -12,14 +12,16 @@ import (
 	"go-simpler.org/assert"
 	. "go-simpler.org/assert/EF"
 	"go-simpler.org/queries"
+	"modernc.org/sqlite"
 )
 
 var DBs = map[string]struct {
 	driver driver.Driver
 	dsn    string
 }{
-	"postgres": {pgx.GetDefaultDriver(), "postgres://postgres:postgres@localhost:5432/postgres"},
-	"mysql":    {new(mysql.MySQLDriver), "root:root@tcp(localhost:3306)/mysql?parseTime=true"},
+	"postgres": {pgx.GetDefaultDriver(), "postgres://postgres:postgres@localhost:5432/postgres"}, // https://github.com/jackc/pgx
+	"mysql":    {new(mysql.MySQLDriver), "root:root@tcp(localhost:3306)/mysql?parseTime=true"},   // https://github.com/go-sql-driver/mysql
+	"sqlite":   {new(sqlite.Driver), "test.sqlite"},                                              // https://gitlab.com/cznic/sqlite
 }
 
 type User struct {
@@ -106,7 +108,7 @@ func TestIntegration(t *testing.T) {
 			assert.Equal[E](t, user.Name, TableUsers[0].Name)
 
 			var i int
-			for user, err := range queries.Query[User](ctx, queryer, "SELECT id, name, created_at FROM users") {
+			for user, err := range queries.Query[User](ctx, queryer, "SELECT id, name, created_at FROM users ORDER BY id") {
 				assert.NoErr[F](t, err)
 				assert.Equal[E](t, user.ID, TableUsers[i].ID)
 				assert.Equal[E](t, user.Name, TableUsers[i].Name)
@@ -140,7 +142,7 @@ func migrate(ctx context.Context, db *sql.DB) error {
 		args  []any
 	}
 	migrations := []migration{
-		{"CREATE TABLE IF NOT EXISTS users (id INT PRIMARY KEY, name TEXT, created_at TIMESTAMP DEFAULT NOW())", nil},
+		{"CREATE TABLE IF NOT EXISTS users (id INT PRIMARY KEY, name TEXT, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)", nil},
 	}
 
 	var args []any
@@ -150,9 +152,9 @@ func migrate(ctx context.Context, db *sql.DB) error {
 
 	switch db.Driver().(type) {
 	case *pgx.Driver:
-		migrations = append(migrations, migration{"INSERT INTO users (id, name) VALUES (%$, %$), (%$, %$), (%$, %$) ON CONFLICT DO NOTHING", args})
-	case *mysql.MySQLDriver:
-		migrations = append(migrations, migration{"INSERT IGNORE INTO users (id, name) VALUES (%?, %?), (%?, %?), (%?, %?)", args})
+		migrations = append(migrations, migration{"INSERT INTO users (id, name) VALUES (%$, %$), (%$, %$), (%$, %$)", args})
+	case *mysql.MySQLDriver, *sqlite.Driver:
+		migrations = append(migrations, migration{"INSERT INTO users (id, name) VALUES (%?, %?), (%?, %?), (%?, %?)", args})
 	default:
 		panic("unreachable")
 	}
