@@ -102,6 +102,7 @@ db.QueryContext(ctx, "SELECT id, name FROM users")
 Integration tests cover the following databases and drivers:
 - PostgreSQL with [jackx/pgx][3]
 - MySQL with [go-sql-driver/mysql][4]
+- SQLite with [modernc.org/sqlite][5]
 
 ## 🚧 TODOs
 
@@ -113,3 +114,4 @@ Integration tests cover the following databases and drivers:
 [2]: https://grpc.io/docs/guides/interceptors
 [3]: https://github.com/jackc/pgx
 [4]: https://github.com/go-sql-driver/mysql
+[5]: https://gitlab.com/cznic/sqlite
