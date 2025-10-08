@@ -60,7 +60,7 @@ var TableUsers = []User{
 }
 
 func TestIntegration(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	for name, database := range DBs {
 		var execCalls int

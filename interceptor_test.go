@@ -13,7 +13,7 @@ import (
 )
 
 func TestInterceptor(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	var execCalled bool
 	var queryCalled bool
@@ -56,7 +56,7 @@ func TestInterceptor(t *testing.T) {
 }
 
 func TestInterceptor_passthrough(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	interceptor := queries.Interceptor{
 		Driver: mockDriver{conn: spyConn{}},
@@ -80,7 +80,7 @@ func TestInterceptor_passthrough(t *testing.T) {
 }
 
 func TestInterceptor_unimplemented(t *testing.T) {
-	ctx := context.Background()
+	ctx := t.Context()
 
 	interceptor := queries.Interceptor{
 		Driver: mockDriver{conn: unimplementedConn{}},

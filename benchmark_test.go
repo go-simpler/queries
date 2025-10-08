@@ -16,10 +16,8 @@ func benchmarkScan[T dst](b *testing.B, cache bool) {
 	columns := t.columns()
 	s := mockScanner{values: t.values()}
 
-	b.ResetTimer()
 	b.ReportAllocs()
-	// TODO: use b.Loop() instead when Go 1.24 becomes oldstable.
-	for range b.N {
+	for b.Loop() {
 		_, _ = scan[T](&s, columns)
 	}
 }
