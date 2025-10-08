@@ -9,6 +9,7 @@ gen:
 
 deps:
 	@go mod tidy
+	@cd tests && go mod tidy
 
 lint:
 	@golangci-lint run

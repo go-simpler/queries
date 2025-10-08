@@ -15,13 +15,36 @@ import (
 	"modernc.org/sqlite"
 )
 
+// --------------------------------------------------------------------------------------
+// | Interface / Driver          | jackc/pgx | go-sql-driver/mysql | modernc.org/sqlite |
+// |-----------------------------|-----------|---------------------|--------------------|
+// | [driver.DriverContext]      |     +     |          +          |          -         |
+// | [driver.Pinger]             |     +     |          +          |          +         |
+// | [driver.ExecerContext]      |     +     |          +          |          +         |
+// | [driver.QueryerContext]     |     +     |          +          |          +         |
+// | [driver.ConnPrepareContext] |     +     |          +          |          +         |
+// | [driver.ConnBeginTx]        |     +     |          +          |          +         |
+// | [driver.SessionResetter]    |     +     |          +          |          +         |
+// | [driver.Validator]          |     -     |          +          |          +         |
+// | [driver.NamedValueChecker]  |     +     |          +          |          -         |
+// --------------------------------------------------------------------------------------
+
 var DBs = map[string]struct {
 	driver driver.Driver
 	dsn    string
 }{
-	"postgres": {pgx.GetDefaultDriver(), "postgres://postgres:postgres@localhost:5432/postgres"}, // https://github.com/jackc/pgx
-	"mysql":    {new(mysql.MySQLDriver), "root:root@tcp(localhost:3306)/mysql?parseTime=true"},   // https://github.com/go-sql-driver/mysql
-	"sqlite":   {new(sqlite.Driver), "test.sqlite"},                                              // https://gitlab.com/cznic/sqlite
+	"postgres": { // https://github.com/jackc/pgx
+		pgx.GetDefaultDriver(),
+		"postgres://postgres:postgres@localhost:5432/postgres",
+	},
+	"mysql": { // https://github.com/go-sql-driver/mysql
+		new(mysql.MySQLDriver),
+		"root:root@tcp(localhost:3306)/mysql?parseTime=true",
+	},
+	"sqlite": { // https://gitlab.com/cznic/sqlite
+		new(sqlite.Driver),
+		"test.sqlite",
+	},
 }
 
 type User struct {

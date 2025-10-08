@@ -97,10 +97,10 @@ func TestInterceptor_unimplemented(t *testing.T) {
 	assert.Panics[E](t, pingFn, "queries: driver does not implement driver.Pinger")
 
 	execFn := func() { _, _ = db.ExecContext(ctx, "") }
-	assert.Panics[E](t, execFn, "queries: driver does not implement driver.ExecerContext")
+	assert.Panics[E](t, execFn, "queries: driver does not implement driver.ConnPrepareContext")
 
 	queryFn := func() { _, _ = db.QueryContext(ctx, "") } //nolint:gocritic // sqlQuery: unused result is fine here.
-	assert.Panics[E](t, queryFn, "queries: driver does not implement driver.QueryerContext")
+	assert.Panics[E](t, queryFn, "queries: driver does not implement driver.ConnPrepareContext")
 
 	prepareFn := func() { _, _ = db.PrepareContext(ctx, "") }
 	assert.Panics[E](t, prepareFn, "queries: driver does not implement driver.ConnPrepareContext")
