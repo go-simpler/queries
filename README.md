@@ -15,7 +15,7 @@ Convenience helpers for working with SQL queries.
 
 ## 📦 Install
 
-Go 1.23+
+Go 1.24+
 
 ```shell
 go get go-simpler.org/queries

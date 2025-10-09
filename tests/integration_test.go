@@ -183,9 +183,8 @@ func migrate(ctx context.Context, db *sql.DB) error {
 	}
 
 	for _, m := range migrations {
-		var qb queries.Builder
-		qb.Appendf(m.query, m.args...)
-		if _, err := db.ExecContext(ctx, qb.Query(), qb.Args()...); err != nil {
+		query, args := queries.Build(m.query, m.args...)
+		if _, err := db.ExecContext(ctx, query, args...); err != nil {
 			return err
 		}
 	}
