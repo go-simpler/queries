@@ -17,8 +17,9 @@ func TestBuilder(t *testing.T) {
 	qb.Appendf(" AND bar = %$", "test")
 	qb.Appendf(" AND baz = %$", false)
 
-	assert.Equal[E](t, qb.Query(), "SELECT * FROM tbl WHERE 1=1 AND foo = $1 AND bar = $2 AND baz = $3")
-	assert.Equal[E](t, qb.Args(), []any{42, "test", false})
+	query, args := qb.Build()
+	assert.Equal[E](t, query, "SELECT * FROM tbl WHERE 1=1 AND foo = $1 AND bar = $2 AND baz = $3")
+	assert.Equal[E](t, args, []any{42, "test", false})
 }
 
 func TestBuilder_dialects(t *testing.T) {
@@ -42,72 +43,61 @@ func TestBuilder_dialects(t *testing.T) {
 
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
-			var qb queries.Builder
-			qb.Appendf(test.format, 1, 2, 3)
-			assert.Equal[E](t, qb.Query(), test.query)
-			assert.Equal[E](t, qb.Args(), []any{1, 2, 3})
+			query, args := queries.Build(test.format, 1, 2, 3)
+			assert.Equal[E](t, query, test.query)
+			assert.Equal[E](t, args, []any{1, 2, 3})
 		})
 	}
 }
 
 func TestBuilder_sliceArgument(t *testing.T) {
-	t.Run("ok", func(t *testing.T) {
-		var qb queries.Builder
-		qb.Appendf("SELECT * FROM tbl WHERE foo IN (%+$)", []int{1, 2, 3})
-		assert.Equal[E](t, qb.Query(), "SELECT * FROM tbl WHERE foo IN ($1, $2, $3)")
-		assert.Equal[E](t, qb.Args(), []any{1, 2, 3})
-	})
-
-	t.Run("empty", func(t *testing.T) {
-		var qb queries.Builder
-		qb.Appendf("SELECT * FROM tbl WHERE foo IN (%+$)", []int{})
-		assert.Equal[E](t, qb.Query(), "SELECT * FROM tbl WHERE foo IN (NULL)")
-		assert.Equal[E](t, len(qb.Args()), 0)
-	})
+	query, args := queries.Build("SELECT * FROM tbl WHERE foo IN (%+$)", []int{1, 2, 3})
+	assert.Equal[E](t, query, "SELECT * FROM tbl WHERE foo IN ($1, $2, $3)")
+	assert.Equal[E](t, args, []any{1, 2, 3})
 }
 
 func TestBuilder_badQuery(t *testing.T) {
 	tests := map[string]struct {
-		appendf func(*queries.Builder)
-		query   string
+		format string
+		args   []any
+		query  string
 	}{
 		"wrong verb": {
-			appendf: func(qb *queries.Builder) {
-				qb.Appendf("SELECT %d FROM tbl", "foo")
-			},
-			query: "SELECT %!d(string=foo) FROM tbl",
+			format: "SELECT %d FROM tbl",
+			args:   []any{"foo"},
+			query:  "SELECT %!d(string=foo) FROM tbl",
 		},
 		"too few arguments": {
-			appendf: func(qb *queries.Builder) {
-				qb.Appendf("SELECT %s FROM tbl")
-			},
-			query: "SELECT %!s(MISSING) FROM tbl",
+			format: "SELECT %s FROM tbl",
+			args:   []any{},
+			query:  "SELECT %!s(MISSING) FROM tbl",
 		},
 		"too many arguments": {
-			appendf: func(qb *queries.Builder) {
-				qb.Appendf("SELECT %s FROM tbl", "foo", "bar")
-			},
-			query: "SELECT foo FROM tbl%!(EXTRA queries.argument=bar)",
+			format: "SELECT %s FROM tbl",
+			args:   []any{"foo", "bar"},
+			query:  "SELECT foo FROM tbl%!(EXTRA queries.formatter=bar)",
 		},
 		"unexpected placeholder": {
-			appendf: func(qb *queries.Builder) {
-				qb.Appendf("SELECT * FROM tbl WHERE foo = %? AND bar = %$", 1, 2)
-			},
-			query: "SELECT * FROM tbl WHERE foo = ? AND bar = %!$(PANIC=Format method: unexpected placeholder)",
+			format: "SELECT * FROM tbl WHERE foo = %? AND bar = %$",
+			args:   []any{1, 2},
+			query:  "SELECT * FROM tbl WHERE foo = ? AND bar = %!$(PANIC=Format method: unexpected placeholder)",
 		},
 		"non-slice argument": {
-			appendf: func(qb *queries.Builder) {
-				qb.Appendf("SELECT * FROM tbl WHERE foo IN (%+$)", 1)
-			},
-			query: "SELECT * FROM tbl WHERE foo IN (%!$(PANIC=Format method: non-slice argument))",
+			format: "SELECT * FROM tbl WHERE foo IN (%+$)",
+			args:   []any{1},
+			query:  "SELECT * FROM tbl WHERE foo IN (%!$(PANIC=Format method: non-slice argument))",
+		},
+		"zero-length slice argument": {
+			format: "SELECT * FROM tbl WHERE foo IN (%+$)",
+			args:   []any{[]int{}},
+			query:  "SELECT * FROM tbl WHERE foo IN (%!$(PANIC=Format method: zero-length slice argument))",
 		},
 	}
 
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
-			var qb queries.Builder
-			test.appendf(&qb)
-			assert.Equal[E](t, qb.Query(), test.query)
+			query, _ := queries.Build(test.format, test.args...)
+			assert.Equal[E](t, query, test.query)
 		})
 	}
 }
