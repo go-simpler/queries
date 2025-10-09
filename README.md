@@ -41,7 +41,8 @@ if limit != nil { // 10
     qb.Appendf(" LIMIT %$", *limit)
 }
 
-db.QueryContext(ctx, qb.Query(), qb.Args()...)
+query, args := qb.Build()
+db.QueryContext(ctx, query, args...)
 // Query: "SELECT id, name FROM users WHERE role = $1 ORDER BY $2 LIMIT $3"
 // Args: ["admin", "name", 10]
 ```

@@ -9,66 +9,76 @@ import (
 
 	"github.com/go-sql-driver/mysql"
 	pgx "github.com/jackc/pgx/v5/stdlib"
+	mssql "github.com/microsoft/go-mssqldb"
 	"go-simpler.org/assert"
 	. "go-simpler.org/assert/EF"
 	"go-simpler.org/queries"
 	"modernc.org/sqlite"
 )
 
-// --------------------------------------------------------------------------------------
-// | Interface / Driver          | jackc/pgx | go-sql-driver/mysql | modernc.org/sqlite |
-// |-----------------------------|-----------|---------------------|--------------------|
-// | [driver.DriverContext]      |     +     |          +          |          -         |
-// | [driver.Pinger]             |     +     |          +          |          +         |
-// | [driver.ExecerContext]      |     +     |          +          |          +         |
-// | [driver.QueryerContext]     |     +     |          +          |          +         |
-// | [driver.ConnPrepareContext] |     +     |          +          |          +         |
-// | [driver.ConnBeginTx]        |     +     |          +          |          +         |
-// | [driver.SessionResetter]    |     +     |          +          |          +         |
-// | [driver.Validator]          |     -     |          +          |          +         |
-// | [driver.NamedValueChecker]  |     +     |          +          |          -         |
-// --------------------------------------------------------------------------------------
+const createTableUsersQuery = "CREATE TABLE users (id INTEGER PRIMARY KEY, name VARCHAR(8))"
 
-var DBs = map[string]struct {
-	driver driver.Driver
-	dsn    string
-}{
-	"postgres": { // https://github.com/jackc/pgx
-		pgx.GetDefaultDriver(),
-		"postgres://postgres:postgres@localhost:5432/postgres",
-	},
-	"mysql": { // https://github.com/go-sql-driver/mysql
-		new(mysql.MySQLDriver),
-		"root:root@tcp(localhost:3306)/mysql?parseTime=true",
-	},
-	"sqlite": { // https://gitlab.com/cznic/sqlite
-		new(sqlite.Driver),
-		"test.sqlite",
-	},
+type userDTO struct {
+	ID   int    `sql:"id"`
+	Name string `sql:"name"`
 }
 
-type User struct {
-	ID        int       `sql:"id"`
-	Name      string    `sql:"name"`
-	CreatedAt time.Time `sql:"created_at"`
-}
-
-var TableUsers = []User{
+var tableUsers = []userDTO{
 	{ID: 1, Name: "Alice"},
 	{ID: 2, Name: "Bob"},
-	{ID: 3, Name: "Carol"},
+}
+
+// -------------------------------------------------------------------------------------------------------------
+// | Interface / Driver          | jackc/pgx | go-sql-driver/mysql | modernc.org/sqlite | microsoft/go-mssqldb |
+// |-----------------------------|-----------|---------------------|--------------------|----------------------|
+// | [driver.DriverContext]      |     +     |          +          |          -         |           -          |
+// | [driver.Pinger]             |     +     |          +          |          +         |           +          |
+// | [driver.ExecerContext]      |     +     |          +          |          +         |           -          |
+// | [driver.QueryerContext]     |     +     |          +          |          +         |           -          |
+// | [driver.ConnPrepareContext] |     +     |          +          |          +         |           +          |
+// | [driver.ConnBeginTx]        |     +     |          +          |          +         |           +          |
+// | [driver.SessionResetter]    |     +     |          +          |          +         |           +          |
+// | [driver.Validator]          |     -     |          +          |          +         |           +          |
+// | [driver.NamedValueChecker]  |     +     |          +          |          -         |           +          |
+// -------------------------------------------------------------------------------------------------------------
+
+var databases = map[string]struct {
+	driver              driver.Driver
+	dataSourceName      string
+	insertFixturesQuery string
+}{
+	"postgres": {
+		pgx.GetDefaultDriver(), // https://github.com/jackc/pgx
+		"postgres://postgres:postgres@localhost:5432/postgres",
+		"INSERT INTO users (id, name) VALUES (%$, %$), (%$, %$)",
+	},
+	"mysql": {
+		new(mysql.MySQLDriver), // https://github.com/go-sql-driver/mysql
+		"root:root@tcp(localhost:3306)/mysql?parseTime=true",
+		"INSERT INTO users (id, name) VALUES (%?, %?), (%?, %?)",
+	},
+	"sqlite": {
+		new(sqlite.Driver), // https://gitlab.com/cznic/sqlite
+		"test.sqlite",
+		"INSERT INTO users (id, name) VALUES (%?, %?), (%?, %?)",
+	},
+	"mssql": {
+		new(mssql.Driver), // https://github.com/microsoft/go-mssqldb
+		"sqlserver://sa:root+1234@localhost:1433/msdb",
+		"INSERT INTO users (id, name) VALUES (%@, %@), (%@, %@)",
+	},
 }
 
 func TestIntegration(t *testing.T) {
 	ctx := t.Context()
 
-	for name, database := range DBs {
+	for name, params := range databases {
 		var execCalls int
 		var queryCalls int
 		var prepareCalls int
 
 		interceptor := queries.Interceptor{
-			Driver: database.driver,
+			Driver: params.driver,
 			ExecContext: func(ctx context.Context, query string, args []driver.NamedValue, execer driver.ExecerContext) (driver.Result, error) {
 				execCalls++
 				t.Logf("[%s] ExecContext: %s %v", name, query, namedToAny(args))
@@ -89,11 +99,11 @@ func TestIntegration(t *testing.T) {
 		driverName := name + "_interceptor"
 		sql.Register(driverName, interceptor)
 
-		db, err := sql.Open(driverName, database.dsn)
+		db, err := sql.Open(driverName, params.dataSourceName)
 		assert.NoErr[F](t, err)
 		defer db.Close()
 
-		// wait until db is ready.
+		// wait until the database is ready.
 		for attempt := 0; ; attempt++ {
 			err := db.PingContext(ctx)
 			if err == nil {
@@ -105,7 +115,15 @@ func TestIntegration(t *testing.T) {
 			time.Sleep(time.Second)
 		}
 
-		assert.NoErr[F](t, migrate(ctx, db))
+		_, err = db.ExecContext(ctx, createTableUsersQuery)
+		assert.NoErr[F](t, err)
+
+		query, args := queries.Build(params.insertFixturesQuery,
+			tableUsers[0].ID, tableUsers[0].Name,
+			tableUsers[1].ID, tableUsers[1].Name,
+		)
+		_, err = db.ExecContext(ctx, query, args...)
+		assert.NoErr[F](t, err)
 
 		tx, err := db.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelSerializable})
 		assert.NoErr[F](t, err)
@@ -119,33 +137,40 @@ func TestIntegration(t *testing.T) {
 
 			name, err := queries.QueryRow[string](ctx, queryer, "SELECT name FROM users WHERE id = 1")
 			assert.NoErr[F](t, err)
-			assert.Equal[E](t, name, TableUsers[0].Name)
+			assert.Equal[E](t, name, tableUsers[0].Name)
 
 			names, err := queries.Collect(queries.Query[string](ctx, queryer, "SELECT name FROM users"))
 			assert.NoErr[F](t, err)
-			assert.Equal[E](t, names, []string{TableUsers[0].Name, TableUsers[1].Name, TableUsers[2].Name})
+			assert.Equal[E](t, names, []string{tableUsers[0].Name, tableUsers[1].Name})
 
-			user, err := queries.QueryRow[User](ctx, queryer, "SELECT id, name, created_at FROM users WHERE id = 1")
+			user, err := queries.QueryRow[userDTO](ctx, queryer, "SELECT id, name FROM users WHERE id = 1")
 			assert.NoErr[F](t, err)
-			assert.Equal[E](t, user.ID, TableUsers[0].ID)
-			assert.Equal[E](t, user.Name, TableUsers[0].Name)
+			assert.Equal[E](t, user.ID, tableUsers[0].ID)
+			assert.Equal[E](t, user.Name, tableUsers[0].Name)
 
 			var i int
-			for user, err := range queries.Query[User](ctx, queryer, "SELECT id, name, created_at FROM users ORDER BY id") {
+			for user, err := range queries.Query[userDTO](ctx, queryer, "SELECT id, name FROM users ORDER BY id") {
 				assert.NoErr[F](t, err)
-				assert.Equal[E](t, user.ID, TableUsers[i].ID)
-				assert.Equal[E](t, user.Name, TableUsers[i].Name)
+				assert.Equal[E](t, user.ID, tableUsers[i].ID)
+				assert.Equal[E](t, user.Name, tableUsers[i].Name)
 				i++
 			}
 		}
 
 		assert.NoErr[F](t, tx.Commit())
-		assert.Equal[E](t, execCalls, 2)
-		assert.Equal[E](t, queryCalls, 5*2)
-		if name == "mysql" {
-			// github.com/go-sql-driver/mysql falls back to PrepareContext for queries with arguments.
+
+		switch db.Driver().(type) {
+		case *mysql.MySQLDriver: // falls back to PrepareContext for queries with arguments.
+			assert.Equal[E](t, execCalls, 2)
+			assert.Equal[E](t, queryCalls, 5*2)
 			assert.Equal[E](t, prepareCalls, 1)
-		} else {
+		case *mssql.Driver: // always uses PrepareContext.
+			assert.Equal[E](t, execCalls, 0)
+			assert.Equal[E](t, queryCalls, 0)
+			assert.Equal[E](t, prepareCalls, 2+5*2)
+		default:
+			assert.Equal[E](t, execCalls, 2)
+			assert.Equal[E](t, queryCalls, 5*2)
 			assert.Equal[E](t, prepareCalls, 0)
 		}
 	}
@@ -157,37 +182,4 @@ func namedToAny(values []driver.NamedValue) []any {
 		args[i] = value.Value
 	}
 	return args
-}
-
-func migrate(ctx context.Context, db *sql.DB) error {
-	type migration struct {
-		query string
-		args  []any
-	}
-	migrations := []migration{
-		{"CREATE TABLE IF NOT EXISTS users (id INT PRIMARY KEY, name TEXT, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)", nil},
-	}
-
-	var args []any
-	for _, user := range TableUsers {
-		args = append(args, user.ID, user.Name)
-	}
-
-	switch db.Driver().(type) {
-	case *pgx.Driver:
-		migrations = append(migrations, migration{"INSERT INTO users (id, name) VALUES (%$, %$), (%$, %$), (%$, %$)", args})
-	case *mysql.MySQLDriver, *sqlite.Driver:
-		migrations = append(migrations, migration{"INSERT INTO users (id, name) VALUES (%?, %?), (%?, %?), (%?, %?)", args})
-	default:
-		panic("unreachable")
-	}
-
-	for _, m := range migrations {
-		query, args := queries.Build(m.query, m.args...)
-		if _, err := db.ExecContext(ctx, query, args...); err != nil {
-			return err
-		}
-	}
-
-	return nil
 }
