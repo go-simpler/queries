@@ -23,13 +23,13 @@ type Builder struct {
 // It works like [fmt.Appendf], meaning all the rules from the [fmt] package are applied.
 // In addition, Appendf supports special verbs that automatically expand to database placeholders.
 //
-//	---------------------------------------------
-//	| Database             | Verb | Placeholder |
-//	|----------------------|------|-------------|
-//	| MySQL, SQLite        | %?   | ?           |
-//	| PostgreSQL           | %$   | $N          |
-//	| Microsoft SQL Server | %@   | @pN         |
-//	---------------------------------------------
+//	-----------------------------------------------
+//	| Database               | Verb | Placeholder |
+//	|------------------------|------|-------------|
+//	| MySQL, MariaDB, SQLite | %?   | ?           |
+//	| PostgreSQL             | %$   | $N          |
+//	| Microsoft SQL Server   | %@   | @pN         |
+//	-----------------------------------------------
 //
 // Here, N is an auto-incrementing counter.
 // For example, "%$, %$, %$" expands to "$1, $2, $3".

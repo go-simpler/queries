@@ -101,18 +101,22 @@ db.QueryContext(ctx, "SELECT id, name FROM users")
 ```
 
 Integration tests cover the following databases and drivers:
-- PostgreSQL with [jackx/pgx][3]
-- MySQL with [go-sql-driver/mysql][4]
-- SQLite with [modernc.org/sqlite][5]
+- PostgreSQL with [lib/pq][3], [jackx/pgx][4]
+- MySQL with [go-sql-driver/mysql][5]
+- SQLite with [modernc.org/sqlite][6]
+- Microsoft SQL Server with [microsoft/go-mssqldb][7]
+
+See [integration_test.go](tests/integration_test.go) for details.
 
 ## 🚧 TODOs
 
-- Add more tests for different databases and drivers. See https://go.dev/wiki/SQLDrivers.
 - Add examples for tested databases and drivers.
 - Add benchmarks.
 
 [1]: https://github.com/golang/go/issues/61637
 [2]: https://grpc.io/docs/guides/interceptors
-[3]: https://github.com/jackc/pgx
-[4]: https://github.com/go-sql-driver/mysql
-[5]: https://gitlab.com/cznic/sqlite
+[3]: https://github.com/lib/pq
+[4]: https://github.com/jackc/pgx
+[5]: https://github.com/go-sql-driver/mysql
+[6]: https://gitlab.com/cznic/sqlite
+[7]: https://github.com/microsoft/go-mssqldb
