@@ -5,6 +5,7 @@ go 1.24
 require (
 	github.com/go-sql-driver/mysql v1.9.0
 	github.com/jackc/pgx/v5 v5.7.3
+	github.com/lib/pq v1.10.9
 	github.com/microsoft/go-mssqldb v1.9.3
 	go-simpler.org/assert v0.9.0
 	go-simpler.org/queries v0.1.0
