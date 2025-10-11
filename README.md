@@ -50,7 +50,8 @@ db.QueryContext(ctx, query, args...)
 The following database placeholders are supported:
 - `?` (used by MySQL and SQLite)
 - `$1`, `$2`, ..., `$N` (used by PostgreSQL)
-- `@p1`, `@p2`, ..., `@pN` (used by MSSQL)
+- `@p1`, `@p2`, ..., `@pN` (used by Microsoft SQL Server)
+- `:1`, `:2`, ..., `:N` (used by Oracle Database):
 
 ### Scanner
 
@@ -105,6 +106,7 @@ Integration tests cover the following databases and drivers:
 - MySQL with [go-sql-driver/mysql][5]
 - SQLite with [modernc.org/sqlite][6]
 - Microsoft SQL Server with [microsoft/go-mssqldb][7]
+- Oracle Database with [sijms/go-ora][8]
 
 See [integration_test.go](tests/integration_test.go) for details.
 
@@ -120,3 +122,4 @@ See [integration_test.go](tests/integration_test.go) for details.
 [5]: https://github.com/go-sql-driver/mysql
 [6]: https://gitlab.com/cznic/sqlite
 [7]: https://github.com/microsoft/go-mssqldb
+[8]: https://github.com/sijms/go-ora
