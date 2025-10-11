@@ -50,7 +50,8 @@ db.QueryContext(ctx, query, args...)
 The following database placeholders are supported:
 - `?` (used by MySQL and SQLite)
 - `$1`, `$2`, ..., `$N` (used by PostgreSQL)
-- `@p1`, `@p2`, ..., `@pN` (used by MSSQL)
+- `@p1`, `@p2`, ..., `@pN` (used by Microsoft SQL Server)
+- `:1`, `:2`, ..., `:N` (used by Oracle Database):
 
 ### Scanner
 
