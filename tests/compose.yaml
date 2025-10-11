@@ -25,3 +25,10 @@ services:
     environment:
       - ACCEPT_EULA=Y
       - MSSQL_SA_PASSWORD=root+1234
+  oracle:
+    # https://hub.docker.com/r/gvenzl/oracle-free
+    image: gvenzl/oracle-free:latest-faststart
+    ports:
+      - 1521:1521
+    environment:
+      - ORACLE_PASSWORD=root

@@ -29,6 +29,7 @@ type Builder struct {
 //	| MySQL, MariaDB, SQLite | %?   | ?           |
 //	| PostgreSQL             | %$   | $N          |
 //	| Microsoft SQL Server   | %@   | @pN         |
+//	| Oracle Database        | %:   | :N          |
 //	-----------------------------------------------
 //
 // Here, N is an auto-incrementing counter.
@@ -68,7 +69,7 @@ type formatter struct {
 // Format implements [fmt.Formatter].
 func (f formatter) Format(s fmt.State, verb rune) {
 	switch verb {
-	case '?', '$', '@':
+	case '?', '$', '@', ':':
 		if f.builder.placeholder == 0 {
 			f.builder.placeholder = verb
 		}
@@ -96,6 +97,9 @@ func appendOne(w io.Writer, b *Builder, verb rune, arg any) {
 	case '@':
 		b.counter++
 		fmt.Fprintf(w, "@p%d", b.counter)
+	case ':':
+		b.counter++
+		fmt.Fprintf(w, ":%d", b.counter)
 	}
 	b.args = append(b.args, arg)
 }

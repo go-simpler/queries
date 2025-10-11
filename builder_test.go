@@ -39,6 +39,10 @@ func TestBuilder_dialects(t *testing.T) {
 			format: "SELECT * FROM tbl WHERE foo = %@ AND bar = %@ AND baz = %@",
 			query:  "SELECT * FROM tbl WHERE foo = @p1 AND bar = @p2 AND baz = @p3",
 		},
+		":": {
+			format: "SELECT * FROM tbl WHERE foo = %: AND bar = %: AND baz = %:",
+			query:  "SELECT * FROM tbl WHERE foo = :1 AND bar = :2 AND baz = :3",
+		},
 	}
 
 	for name, test := range tests {
