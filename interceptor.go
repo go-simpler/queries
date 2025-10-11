@@ -26,7 +26,6 @@ var (
 // Otherwise, it prepares a [driver.Stmt] using [driver.ConnPrepareContext], executes it, and closes it.
 // In such cases, you may want to implement both the PrepareContext and ExecContext/QueryContext callbacks,
 // even if you don't prepare statements manually via [sql.DB.PrepareContext].
-// TODO: provide an example of such an implementation.
 //
 // [go-sql-driver/mysql]: https://github.com/go-sql-driver/mysql
 type Interceptor struct {
@@ -49,6 +48,10 @@ type Interceptor struct {
 	// PrepareContext is a callback for [sql.DB.PrepareContext] and [sql.Tx.PrepareContext].
 	// The implementation must call preparer.ConnPrepareContext(ctx, query) and return the result.
 	PrepareContext func(ctx context.Context, query string, preparer driver.ConnPrepareContext) (driver.Stmt, error)
+
+	// BeginTx is a callback for [sql.DB.BeginTx].
+	// The implementation must call beginner.BeginTx(ctx, opts) and return the result.
+	BeginTx func(ctx context.Context, opts driver.TxOptions, beginner driver.ConnBeginTx) (driver.Tx, error)
 }
 
 // Open implements [driver.Driver].
@@ -133,6 +136,9 @@ func (c wrappedConn) BeginTx(ctx context.Context, opts driver.TxOptions) (driver
 	beginner, ok := c.Conn.(driver.ConnBeginTx)
 	if !ok {
 		panic("queries: driver does not implement driver.ConnBeginTx")
+	}
+	if c.interceptor.BeginTx != nil {
+		return c.interceptor.BeginTx(ctx, opts, beginner)
 	}
 	return beginner.BeginTx(ctx, opts)
 }

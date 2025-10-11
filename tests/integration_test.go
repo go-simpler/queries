@@ -99,6 +99,7 @@ func TestIntegration(t *testing.T) {
 				var execCalls int
 				var queryCalls int
 				var prepareCalls int
+				var beginTxCalls int
 
 				interceptor := queries.Interceptor{
 					Driver: driverIface,
@@ -116,6 +117,11 @@ func TestIntegration(t *testing.T) {
 						prepareCalls++
 						t.Logf("PrepareContext: %s", query)
 						return preparer.PrepareContext(ctx, query)
+					},
+					BeginTx: func(ctx context.Context, opts driver.TxOptions, beginner driver.ConnBeginTx) (driver.Tx, error) {
+						beginTxCalls++
+						t.Log("BeginTx")
+						return beginner.BeginTx(ctx, opts)
 					},
 				}
 
@@ -187,14 +193,17 @@ func TestIntegration(t *testing.T) {
 					assert.Equal[E](t, execCalls, 3)
 					assert.Equal[E](t, queryCalls, 5*2)
 					assert.Equal[E](t, prepareCalls, 1)
+					assert.Equal[E](t, beginTxCalls, 1)
 				case *mssqldb.Driver: // always uses PrepareContext.
 					assert.Equal[E](t, execCalls, 0)
 					assert.Equal[E](t, queryCalls, 0)
 					assert.Equal[E](t, prepareCalls, 3+5*2)
+					assert.Equal[E](t, beginTxCalls, 1)
 				default:
 					assert.Equal[E](t, execCalls, 3)
 					assert.Equal[E](t, queryCalls, 5*2)
 					assert.Equal[E](t, prepareCalls, 0)
+					assert.Equal[E](t, beginTxCalls, 1)
 				}
 			})
 		}
