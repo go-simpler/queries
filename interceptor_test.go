@@ -18,6 +18,7 @@ func TestInterceptor(t *testing.T) {
 	var execCalled bool
 	var queryCalled bool
 	var prepareCalled bool
+	var beginTxCalled bool
 
 	interceptor := queries.Interceptor{
 		Driver: mockDriver{conn: spyConn{}},
@@ -33,9 +34,13 @@ func TestInterceptor(t *testing.T) {
 			prepareCalled = true
 			return preparer.PrepareContext(ctx, query)
 		},
+		BeginTx: func(ctx context.Context, opts driver.TxOptions, beginner driver.ConnBeginTx) (driver.Tx, error) {
+			beginTxCalled = true
+			return beginner.BeginTx(ctx, opts)
+		},
 	}
 
-	driverName := t.Name() + "_interceptor"
+	driverName := t.Name()
 	sql.Register(driverName, interceptor)
 
 	db, err := sql.Open(driverName, "")
@@ -53,6 +58,10 @@ func TestInterceptor(t *testing.T) {
 	_, err = db.PrepareContext(ctx, "")
 	assert.IsErr[E](t, err, errCalled)
 	assert.Equal[E](t, prepareCalled, true)
+
+	_, err = db.BeginTx(ctx, nil)
+	assert.IsErr[E](t, err, errCalled)
+	assert.Equal[E](t, beginTxCalled, true)
 }
 
 func TestInterceptor_passthrough(t *testing.T) {
@@ -62,7 +71,7 @@ func TestInterceptor_passthrough(t *testing.T) {
 		Driver: mockDriver{conn: spyConn{}},
 	}
 
-	driverName := t.Name() + "_interceptor"
+	driverName := t.Name()
 	sql.Register(driverName, interceptor)
 
 	db, err := sql.Open(driverName, "")
@@ -77,6 +86,9 @@ func TestInterceptor_passthrough(t *testing.T) {
 
 	_, err = db.PrepareContext(ctx, "")
 	assert.IsErr[E](t, err, errCalled)
+
+	_, err = db.BeginTx(ctx, nil)
+	assert.IsErr[E](t, err, errCalled)
 }
 
 func TestInterceptor_unimplemented(t *testing.T) {
@@ -86,7 +98,7 @@ func TestInterceptor_unimplemented(t *testing.T) {
 		Driver: mockDriver{conn: unimplementedConn{}},
 	}
 
-	driverName := t.Name() + "_interceptor"
+	driverName := t.Name()
 	sql.Register(driverName, interceptor)
 
 	db, err := sql.Open(driverName, "")
@@ -113,7 +125,7 @@ func TestInterceptor_driver(t *testing.T) {
 	mdriver := mockDriver{}
 	interceptor := queries.Interceptor{Driver: mdriver}
 
-	driverName := t.Name() + "_interceptor"
+	driverName := t.Name()
 	sql.Register(driverName, interceptor)
 
 	db, err := sql.Open(driverName, "")
@@ -146,5 +158,9 @@ func (spyConn) QueryContext(context.Context, string, []driver.NamedValue) (drive
 }
 
 func (spyConn) PrepareContext(context.Context, string) (driver.Stmt, error) {
+	return nil, errCalled
+}
+
+func (spyConn) BeginTx(context.Context, driver.TxOptions) (driver.Tx, error) {
 	return nil, errCalled
 }
