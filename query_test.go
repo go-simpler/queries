@@ -36,87 +36,56 @@ func TestCollect(t *testing.T) {
 
 func Test_scan(t *testing.T) {
 	t.Run("no columns", func(t *testing.T) {
-		fn := func() { _, _ = scan[int](nil, nil) }
-		assert.Panics[E](t, fn, "queries: no columns specified")
-	})
-
-	t.Run("unsupported T", func(t *testing.T) {
-		columns := []string{"foo", "bar"}
-
-		fn := func() { _, _ = scan[complex64](nil, columns) }
-		assert.Panics[E](t, fn, "queries: unsupported T complex64")
+		_, err := scan[int](nil, []string{})
+		assert.IsErr[E](t, err, errNoColumns)
 	})
 
 	t.Run("non-struct T with len(columns) > 1", func(t *testing.T) {
-		columns := []string{"foo", "bar"}
-
-		fn := func() { _, _ = scan[int](nil, columns) }
-		assert.Panics[E](t, fn, "queries: T must be a struct if len(columns) > 1")
+		_, err := scan[int](nil, []string{"foo", "bar"})
+		assert.IsErr[E](t, err, errNonStructT)
 	})
 
-	t.Run("empty tag", func(t *testing.T) {
-		columns := []string{"foo", "bar"}
-
-		type row struct {
-			Foo int    `sql:"foo"`
-			Bar string `sql:""`
-		}
-		fn := func() { _, _ = scan[row](nil, columns) }
-		assert.Panics[E](t, fn, "queries: field Bar has an empty `sql` tag")
+	t.Run("no struct field", func(t *testing.T) {
+		_, err := scan[struct{}](nil, []string{"foo", "bar"})
+		assert.IsErr[E](t, err, errNoStructField)
 	})
 
-	t.Run("missing field", func(t *testing.T) {
-		columns := []string{"foo", "bar"}
-
-		type row struct {
-			Foo int `sql:"foo"`
-			Bar string
-		}
-		fn := func() { _, _ = scan[row](nil, columns) }
-		assert.Panics[E](t, fn, `queries: no field for column "bar"`)
+	t.Run("unsupported T", func(t *testing.T) {
+		_, err := scan[complex64](nil, []string{"foo", "bar"})
+		assert.IsErr[E](t, err, errUnsupportedT)
 	})
 
 	t.Run("scan error", func(t *testing.T) {
-		columns := []string{"foo", "bar"}
 		s := mockScanner{err: errors.New("an error")}
 
 		type row struct {
 			Foo int    `sql:"foo"`
 			Bar string `sql:"bar"`
 		}
-		_, err := scan[row](&s, columns)
+		_, err := scan[row](&s, []string{"foo", "bar"})
 		assert.IsErr[E](t, err, s.err)
 	})
 
 	t.Run("struct T", func(t *testing.T) {
-		columns := []string{"foo", "bar"}
 		s := mockScanner{values: []any{1, "test"}}
 
 		type row struct {
 			Foo        int    `sql:"foo"`
 			Bar        string `sql:"bar"`
-			unexported bool
+			EmptyTag   string `sql:""`
+			Untagged   string
+			unexported string
 		}
-		v, err := scan[row](&s, columns)
+		v, err := scan[row](&s, []string{"foo", "bar"})
 		assert.NoErr[F](t, err)
 		assert.Equal[E](t, v.Foo, 1)
 		assert.Equal[E](t, v.Bar, "test")
-		assert.Equal[E](t, v.unexported, false)
+		assert.Equal[E](t, v.EmptyTag, "")
+		assert.Equal[E](t, v.Untagged, "")
+		assert.Equal[E](t, v.unexported, "")
 	})
 
-	t.Run("struct T with len(columns) == 1", func(t *testing.T) {
-		columns := []string{"foo"}
-		s := mockScanner{values: []any{1}}
-
-		type row struct {
-			Foo int `sql:"foo"`
-		}
-		v, err := scan[row](&s, columns)
-		assert.NoErr[F](t, err)
-		assert.Equal[E](t, v.Foo, 1)
-	})
-
-	t.Run("non-struct T with len(columns) == 1", func(t *testing.T) {
+	t.Run("non-struct T", func(t *testing.T) {
 		columns := []string{"foo"}
 
 		tests := []struct {
@@ -146,7 +115,6 @@ func Test_scan(t *testing.T) {
 			assert.Equal[E](t, v, tt.value)
 		}
 
-		// sql.Scanner implementation:
 		s := mockScanner{values: []any{"test"}}
 		v, err := scan[sql.Null[string]](&s, columns)
 		assert.NoErr[F](t, err)
@@ -159,6 +127,7 @@ type mockScanner struct {
 	err    error
 }
 
+// Scan implements [sql.Scanner].
 func (s *mockScanner) Scan(dst ...any) error {
 	if s.err != nil {
 		return s.err
