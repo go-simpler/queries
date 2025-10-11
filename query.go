@@ -3,6 +3,7 @@ package queries
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"iter"
 	"reflect"
@@ -33,14 +34,7 @@ type Queryer interface {
 // See the [sql.Rows.Scan] documentation for the scanning rules.
 // If the query has multiple columns, T must be a struct, other types can only be used for single-column queries.
 // The fields of a struct T must have the `sql:"COLUMN"` tag, where COLUMN is the name of the corresponding column in the query.
-// Unexported and untagged fields are ignored.
-//
-// Query panics if:
-//   - The query has no columns.
-//   - A non-struct T is specified with a multi-column query.
-//   - The specified struct T has no field for one of the query columns.
-//   - An unsupported T is specified.
-//   - One of the fields in a struct T has an empty `sql` tag.
+// Untagged and unexported and fields are ignored.
 //
 // If the caller prefers the result to be a slice rather than an iterator, Query can be combined with [Collect].
 func Query[T any](ctx context.Context, q Queryer, query string, args ...any) iter.Seq2[T, error] {
@@ -129,9 +123,16 @@ type scanner interface {
 	Scan(...any) error
 }
 
+var (
+	errNoColumns     = errors.New("queries: no columns in the query")
+	errNonStructT    = errors.New("queries: T must be a struct if len(columns) > 1")
+	errNoStructField = errors.New("queries: no struct field for the column")
+	errUnsupportedT  = errors.New("queries: unsupported T")
+)
+
 func scan[T any](s scanner, columns []string) (T, error) {
 	if len(columns) == 0 {
-		panic("queries: no columns specified") // valid in PostgreSQL (for some reason).
+		return zero[T](), errNoColumns
 	}
 
 	var t T
@@ -141,7 +142,7 @@ func scan[T any](s scanner, columns []string) (T, error) {
 	switch {
 	case scannable(v):
 		if len(columns) > 1 {
-			panic("queries: T must be a struct if len(columns) > 1")
+			return zero[T](), errNonStructT
 		}
 		args[0] = v.Addr().Interface()
 	case v.Kind() == reflect.Struct:
@@ -149,12 +150,12 @@ func scan[T any](s scanner, columns []string) (T, error) {
 		for i, column := range columns {
 			idx, ok := indexes[column]
 			if !ok {
-				panic(fmt.Sprintf("queries: no field for column %q", column))
+				return zero[T](), fmt.Errorf("%w %q", errNoStructField, column)
 			}
 			args[i] = v.Field(idx).Addr().Interface()
 		}
 	default:
-		panic(fmt.Sprintf("queries: unsupported T %T", t))
+		return zero[T](), fmt.Errorf("%w %T", errUnsupportedT, t)
 	}
 
 	if err := s.Scan(args...); err != nil {
@@ -208,7 +209,7 @@ func parseStruct(t reflect.Type) map[string]int {
 			continue
 		}
 		if column == "" {
-			panic(fmt.Sprintf("queries: field %s has an empty `sql` tag", field.Name))
+			continue
 		}
 		indexes[column] = i
 	}
