@@ -15,20 +15,18 @@ type Driver struct {
 	// ExecContext is a test implementation of [driver.ExecerContext].
 	// If the code being tested uses [sql.Result],
 	// ExecContext should return a [driver.Result] created with [NewResult].
-	// Optional.
-	ExecContext func(t *testing.T, query string, args []any) (driver.Result, error)
+	ExecContext func(tb testing.TB, query string, args []any) (driver.Result, error)
 
 	// QueryContext is a test implementation of [driver.QueryerContext].
 	// If the code being tested uses [sql.Rows],
 	// QueryContext should return [Rows] created with [NewRows].
-	// Optional.
-	QueryContext func(t *testing.T, query string, args []any) (driver.Rows, error)
+	QueryContext func(tb testing.TB, query string, args []any) (driver.Rows, error)
 }
 
 // NewDB creates a test [sql.DB] backed by the given [Driver].
-func NewDB(t *testing.T, d Driver) *sql.DB {
-	name := t.Name()
-	sql.Register(name, testDriver{t, d})
+func NewDB(tb testing.TB, d Driver) *sql.DB {
+	name := tb.Name()
+	sql.Register(name, testDriver{tb, d})
 	db, _ := sql.Open(name, "")
 	return db
 }
@@ -43,7 +41,7 @@ var (
 )
 
 type testDriver struct {
-	t      *testing.T
+	tb     testing.TB
 	driver Driver
 }
 
@@ -51,17 +49,13 @@ type testDriver struct {
 func (d testDriver) Open(string) (driver.Conn, error) { return d, nil }
 
 // Prepare implements [driver.Conn].
-func (testDriver) Prepare(string) (driver.Stmt, error) {
-	panic("unimplemented") // TODO: implement [driver.ConnPrepareContext]
-}
+func (testDriver) Prepare(string) (driver.Stmt, error) { panic("unimplemented") } // TODO: implement [driver.ConnPrepareContext]
 
 // Close implements [driver.Conn].
 func (testDriver) Close() error { return nil }
 
 // Begin implements [driver.Conn].
-func (testDriver) Begin() (driver.Tx, error) {
-	panic("unreachable") // BeginTx always takes precedence over Begin.
-}
+func (testDriver) Begin() (driver.Tx, error) { panic("unreachable") } // BeginTx always takes precedence over Begin.
 
 // BeginTx implements [driver.ConnBeginTx].
 func (d testDriver) BeginTx(context.Context, driver.TxOptions) (driver.Tx, error) { return d, nil }
@@ -77,7 +71,7 @@ func (d testDriver) ExecContext(_ context.Context, query string, args []driver.N
 	if d.driver.ExecContext == nil {
 		panic("queriestest: Driver.ExecContext is not set")
 	}
-	return d.driver.ExecContext(d.t, query, namedToAny(args))
+	return d.driver.ExecContext(d.tb, query, namedToAny(args))
 }
 
 // QueryContext implements [driver.QueryerContext].
@@ -85,7 +79,7 @@ func (d testDriver) QueryContext(_ context.Context, query string, args []driver.
 	if d.driver.QueryContext == nil {
 		panic("queriestest: Driver.QueryContext is not set")
 	}
-	return d.driver.QueryContext(d.t, query, namedToAny(args))
+	return d.driver.QueryContext(d.tb, query, namedToAny(args))
 }
 
 func namedToAny(values []driver.NamedValue) []any {
@@ -99,17 +93,17 @@ func namedToAny(values []driver.NamedValue) []any {
 var _ driver.Result = testResult{}
 
 type testResult struct {
-	lastInsertId int64
+	lastInsertID int64
 	rowsAffected int64
 }
 
 // NewResult creates a test [driver.Result] from the given values.
-func NewResult(lastInsertId, rowsAffected int64) driver.Result {
-	return testResult{lastInsertId, rowsAffected}
+func NewResult(lastInsertID, rowsAffected int64) driver.Result {
+	return testResult{lastInsertID, rowsAffected}
 }
 
 // LastInsertId implements [driver.Result].
-func (r testResult) LastInsertId() (int64, error) { return r.lastInsertId, nil }
+func (r testResult) LastInsertId() (int64, error) { return r.lastInsertID, nil }
 
 // RowsAffected implements [driver.Result].
 func (r testResult) RowsAffected() (int64, error) { return r.rowsAffected, nil }
