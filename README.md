@@ -110,11 +110,6 @@ Integration tests cover the following databases and drivers:
 
 See [integration_test.go](tests/integration_test.go) for details.
 
-## 🚧 TODOs
-
-- Add examples for tested databases and drivers.
-- Add benchmarks.
-
 [1]: https://github.com/golang/go/issues/61637
 [2]: https://grpc.io/docs/guides/interceptors
 [3]: https://github.com/lib/pq
