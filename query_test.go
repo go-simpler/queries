@@ -67,19 +67,24 @@ func Test_scan(t *testing.T) {
 	})
 
 	t.Run("struct T", func(t *testing.T) {
-		s := mockScanner{values: []any{1, "test"}}
+		s := mockScanner{values: []any{1, "test", true}}
 
+		type embedded struct {
+			Baz bool `sql:"baz"`
+		}
 		type row struct {
+			embedded
 			Foo        int    `sql:"foo"`
 			Bar        string `sql:"bar"`
 			EmptyTag   string `sql:""`
 			Untagged   string
 			unexported string
 		}
-		v, err := scan[row](&s, []string{"foo", "bar"})
+		v, err := scan[row](&s, []string{"foo", "bar", "baz"})
 		assert.NoErr[F](t, err)
 		assert.Equal[E](t, v.Foo, 1)
 		assert.Equal[E](t, v.Bar, "test")
+		assert.Equal[E](t, v.Baz, true)
 		assert.Equal[E](t, v.EmptyTag, "")
 		assert.Equal[E](t, v.Untagged, "")
 		assert.Equal[E](t, v.unexported, "")
