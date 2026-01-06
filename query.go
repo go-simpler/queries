@@ -152,7 +152,7 @@ func scan[T any](s scanner, columns []string) (T, error) {
 			if !ok {
 				return zero[T](), fmt.Errorf("%w %q", errNoStructField, column)
 			}
-			args[i] = v.Field(idx).Addr().Interface()
+			args[i] = v.FieldByIndex(idx).Addr().Interface()
 		}
 	default:
 		return zero[T](), fmt.Errorf("%w %T", errUnsupportedT, t)
@@ -190,28 +190,25 @@ var (
 
 // parseStruct parses the given struct type and returns a map of column names to field indexes.
 // The result is cached, so each struct type is parsed only once.
-func parseStruct(t reflect.Type) map[string]int {
+func parseStruct(t reflect.Type) map[string][]int {
 	if useCache {
 		if m, ok := cache.Load(t); ok {
-			return m.(map[string]int)
+			return m.(map[string][]int)
 		}
 	}
 
-	indexes := make(map[string]int, t.NumField())
+	fields := reflect.VisibleFields(t)
+	indexes := make(map[string][]int, len(fields))
 
-	for i := range t.NumField() {
-		field := t.Field(i)
+	for _, field := range fields {
 		if !field.IsExported() {
 			continue
 		}
 		column, ok := field.Tag.Lookup("sql")
-		if !ok {
+		if !ok || column == "" {
 			continue
 		}
-		if column == "" {
-			continue
-		}
-		indexes[column] = i
+		indexes[column] = field.Index
 	}
 
 	if useCache {
